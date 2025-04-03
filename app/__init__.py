@@ -38,6 +38,9 @@ def create_app(config_class=Config):
     from app.garmin import bp as garmin_bp
     app.register_blueprint(garmin_bp, url_prefix='/garmin')
     
+    from app.health_insights import bp as health_insights_bp
+    app.register_blueprint(health_insights_bp, url_prefix='/health-insights')
+    
     return app
 
 from app import models 
