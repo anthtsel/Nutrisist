@@ -67,4 +67,4 @@ def add_health_metric():
         flash('Health metric has been recorded.')
         return redirect(url_for('user.health_metrics'))
     
-    return render_template('user/add_health_metric.html') 
+    return render_template('user/add_health_metric.html', user=current_user) 
