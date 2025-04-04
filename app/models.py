@@ -1,17 +1,18 @@
-from app import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-
-@login_manager.user_loader
-def load_user(id):
-    return User.query.get(int(id))
+from . import db
 
 class User(UserMixin, db.Model):
+    """User model for authentication."""
+    __tablename__ = 'users'
+    
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
     # Health Information
     age = db.Column(db.Integer)
@@ -24,10 +25,16 @@ class User(UserMixin, db.Model):
     # Health Metrics History
     health_metrics = db.relationship('HealthMetric', backref='user', lazy=True)
     
+    def __init__(self, username, email):
+        self.username = username
+        self.email = email
+    
     def set_password(self, password):
+        """Set the user's password."""
         self.password_hash = generate_password_hash(password)
-        
+    
     def check_password(self, password):
+        """Check if the provided password matches."""
         return check_password_hash(self.password_hash, password)
     
     def calculate_bmi(self):
@@ -56,8 +63,11 @@ class User(UserMixin, db.Model):
         return f'<User {self.username}>'
 
 class HealthMetric(db.Model):
+    """Health metrics history model."""
+    __tablename__ = 'health_metrics'
+    
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
     weight = db.Column(db.Float)  # in kg
     body_fat_percentage = db.Column(db.Float)

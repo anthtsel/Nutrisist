@@ -1,300 +1,239 @@
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
-from datetime import datetime, timedelta
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-import joblib
-import os
+from .. import db
+from datetime import datetime
+from enum import Enum
+from abc import ABC, abstractmethod
+from typing import Dict, Any
+
+class DataType(Enum):
+    HEART_RATE = "heart_rate"
+    SLEEP = "sleep"
+    STEPS = "steps"
+    ACTIVITY = "activity"
+    NUTRITION = "nutrition"
+    RECOVERY = "recovery"
+    STRESS = "stress"
+
+class HealthPlatform(ABC):
+    """Abstract base class for health data platforms."""
+    
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+        self.last_sync = None
+        self.sync_interval = 6  # hours
+        self.auto_sync = True
+    
+    @abstractmethod
+    def connect(self, **kwargs) -> bool:
+        """Connect to the health platform."""
+        pass
+    
+    @abstractmethod
+    def disconnect(self) -> bool:
+        """Disconnect from the health platform."""
+        pass
+    
+    @abstractmethod
+    def fetch_data(self, data_type: DataType, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+        """Fetch health data from the platform."""
+        pass
+    
+    @abstractmethod
+    def normalize_data(self, data: Dict[str, Any], data_type: DataType) -> Dict[str, Any]:
+        """Normalize platform-specific data to unified format."""
+        pass
+
+class UserProfile(db.Model):
+    """User health profile model."""
+    __tablename__ = 'user_profiles'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    name = db.Column(db.String(100), nullable=False)
+    age = db.Column(db.Integer, nullable=False)
+    weight = db.Column(db.Float, nullable=False)  # in kg
+    height = db.Column(db.Integer, nullable=False)  # in cm
+    gender = db.Column(db.String(20), nullable=False)
+    activity_level = db.Column(db.String(20), nullable=False)
+    goal_type = db.Column(db.String(20), nullable=False)
+    weekly_activity_target = db.Column(db.Float, nullable=False)  # in hours
+    medical_conditions = db.Column(db.Text)
+    medications = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<UserProfile {self.name}>'
 
 class HealthInsightModel:
-    def __init__(self):
-        self.heart_rate_model = None
-        self.sleep_quality_model = None
-        self.recovery_model = None
-        self.scaler = StandardScaler()
-        self.models_dir = os.path.join(os.path.dirname(__file__), 'trained_models')
-        self._load_models()
-
-    def _load_models(self):
-        """Load pre-trained models if they exist"""
-        try:
-            self.heart_rate_model = joblib.load(os.path.join(self.models_dir, 'heart_rate_model.joblib'))
-            self.sleep_quality_model = joblib.load(os.path.join(self.models_dir, 'sleep_quality_model.joblib'))
-            self.recovery_model = joblib.load(os.path.join(self.models_dir, 'recovery_model.joblib'))
-            self.scaler = joblib.load(os.path.join(self.models_dir, 'scaler.joblib'))
-        except:
-            self._initialize_models()
-
-    def _initialize_models(self):
-        """Initialize new models if pre-trained ones don't exist"""
-        # Heart Rate Model (Random Forest)
-        self.heart_rate_model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42
-        )
-
-        # Sleep Quality Model (LSTM)
-        self.sleep_quality_model = Sequential([
-            LSTM(64, input_shape=(24, 5)),  # 24 hours of data, 5 features
-            Dropout(0.2),
-            Dense(32, activation='relu'),
-            Dense(1, activation='sigmoid')
-        ])
-        self.sleep_quality_model.compile(
-            optimizer='adam',
-            loss='binary_crossentropy',
-            metrics=['accuracy']
-        )
-
-        # Recovery Model (Random Forest)
-        self.recovery_model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42
-        )
-
+    """Model for generating health insights."""
+    
     def analyze_heart_rate(self, heart_rate_data, user_profile):
-        """Analyze heart rate data and provide insights"""
-        # Prepare features
-        features = self._prepare_heart_rate_features(heart_rate_data, user_profile)
-        
-        # Scale features
-        scaled_features = self.scaler.transform(features)
-        
-        # Predict heart rate status
-        prediction = self.heart_rate_model.predict_proba(scaled_features)[0]
-        
-        # Generate insights
-        insights = {
-            'status': 'normal' if prediction[0] > 0.7 else 'elevated' if prediction[0] > 0.3 else 'high',
-            'confidence': float(max(prediction)),
-            'recommendations': self._generate_heart_rate_recommendations(prediction[0], user_profile)
-        }
-        
-        return insights
-
-    def analyze_sleep_quality(self, sleep_data, activity_data):
-        """Analyze sleep quality and provide recovery insights"""
-        # Prepare features
-        features = self._prepare_sleep_features(sleep_data, activity_data)
-        
-        # Scale features
-        scaled_features = self.scaler.transform(features)
-        
-        # Reshape for LSTM
-        lstm_features = scaled_features.reshape(1, 24, 5)
-        
-        # Predict sleep quality
-        quality_score = self.sleep_quality_model.predict(lstm_features)[0][0]
-        
-        # Generate insights
-        insights = {
-            'quality_score': float(quality_score),
-            'status': 'good' if quality_score > 0.7 else 'fair' if quality_score > 0.4 else 'poor',
-            'recommendations': self._generate_sleep_recommendations(quality_score, sleep_data)
-        }
-        
-        return insights
-
-    def analyze_recovery(self, activity_data, sleep_data, heart_rate_data):
-        """Analyze recovery status and provide recommendations"""
-        # Prepare features
-        features = self._prepare_recovery_features(activity_data, sleep_data, heart_rate_data)
-        
-        # Scale features
-        scaled_features = self.scaler.transform(features)
-        
-        # Predict recovery status
-        prediction = self.recovery_model.predict_proba(scaled_features)[0]
-        
-        # Generate insights
-        insights = {
-            'status': 'ready' if prediction[0] > 0.7 else 'moderate' if prediction[0] > 0.3 else 'rest_needed',
-            'confidence': float(max(prediction)),
-            'recommendations': self._generate_recovery_recommendations(prediction[0], activity_data)
-        }
-        
-        return insights
-
-    def calculate_nutrition_needs(self, activity_data, user_profile):
-        """Calculate personalized nutrition needs based on activity and goals"""
-        # Calculate daily calorie burn
-        daily_calories = self._calculate_daily_calories(activity_data, user_profile)
-        
-        # Calculate macronutrient ratios based on goals
-        macros = self._calculate_macros(daily_calories, user_profile)
-        
-        # Calculate hydration needs
-        hydration = self._calculate_hydration_needs(activity_data, user_profile)
-        
-        return {
-            'daily_calories': daily_calories,
-            'macros': macros,
-            'hydration': hydration
-        }
-
-    def _prepare_heart_rate_features(self, heart_rate_data, user_profile):
-        """Prepare features for heart rate analysis"""
-        features = []
-        for hr in heart_rate_data:
-            features.append([
-                hr['value'],
-                user_profile['age'],
-                user_profile['weight'],
-                user_profile['height'],
-                hr['timestamp'].hour,
-                hr['timestamp'].minute
-            ])
-        return np.array(features)
-
-    def _prepare_sleep_features(self, sleep_data, activity_data):
-        """Prepare features for sleep quality analysis"""
-        features = []
-        for hour in range(24):
-            hour_data = {
-                'sleep_duration': sleep_data.get(hour, {}).get('duration', 0),
-                'sleep_quality': sleep_data.get(hour, {}).get('quality', 0),
-                'activity_level': activity_data.get(hour, {}).get('level', 0),
-                'heart_rate': activity_data.get(hour, {}).get('heart_rate', 0),
-                'temperature': activity_data.get(hour, {}).get('temperature', 0)
+        """Analyze heart rate data and generate insights."""
+        if not heart_rate_data:
+            return {
+                'status': 'no_data',
+                'confidence': 0,
+                'recommendations': ['Start tracking your heart rate to get insights']
             }
-            features.append(list(hour_data.values()))
-        return np.array(features)
-
-    def _prepare_recovery_features(self, activity_data, sleep_data, heart_rate_data):
-        """Prepare features for recovery analysis"""
-        features = []
-        for hour in range(24):
-            hour_data = {
-                'activity_intensity': activity_data.get(hour, {}).get('intensity', 0),
-                'sleep_quality': sleep_data.get(hour, {}).get('quality', 0),
-                'heart_rate_variability': heart_rate_data.get(hour, {}).get('hrv', 0),
-                'rest_duration': activity_data.get(hour, {}).get('rest_duration', 0),
-                'stress_level': activity_data.get(hour, {}).get('stress', 0)
-            }
-            features.append(list(hour_data.values()))
-        return np.array(features)
-
-    def _calculate_daily_calories(self, activity_data, user_profile):
-        """Calculate daily calorie burn based on activity and user profile"""
-        # BMR calculation using Mifflin-St Jeor Equation
-        if user_profile['gender'] == 'male':
-            bmr = 10 * user_profile['weight'] + 6.25 * user_profile['height'] - 5 * user_profile['age'] + 5
+            
+        # Calculate average heart rate
+        heart_rates = [hr['value'] for hr in heart_rate_data]
+        avg_hr = sum(heart_rates) / len(heart_rates)
+        
+        # Determine status based on average heart rate
+        if avg_hr > 100:
+            status = 'elevated'
+            recommendations = [
+                'Consider consulting a healthcare provider',
+                'Practice relaxation techniques',
+                'Monitor your caffeine intake'
+            ]
+        elif avg_hr < 60:
+            status = 'low'
+            recommendations = [
+                'This could be normal for athletes',
+                'Monitor for symptoms like dizziness',
+                'Ensure adequate hydration'
+            ]
         else:
-            bmr = 10 * user_profile['weight'] + 6.25 * user_profile['height'] - 5 * user_profile['age'] - 161
-
-        # Activity multiplier based on activity level
+            status = 'normal'
+            recommendations = [
+                'Maintain your current lifestyle',
+                'Continue regular exercise',
+                'Keep tracking your heart rate'
+            ]
+            
+        return {
+            'status': status,
+            'confidence': 0.8,
+            'recommendations': recommendations
+        }
+        
+    def analyze_sleep_quality(self, sleep_data, activity_data):
+        """Analyze sleep quality and generate insights."""
+        if not sleep_data:
+            return {
+                'quality_score': 0,
+                'status': 'no_data',
+                'recommendations': ['Start tracking your sleep to get insights']
+            }
+            
+        # Calculate average sleep duration
+        sleep_durations = [sleep['duration'] for sleep in sleep_data]
+        avg_duration = sum(sleep_durations) / len(sleep_durations)
+        
+        # Calculate quality score (0-1)
+        quality_score = min(avg_duration / (8 * 3600), 1)  # 8 hours as target
+        
+        # Generate recommendations
+        if quality_score < 0.6:
+            status = 'poor'
+            recommendations = [
+                'Aim for 7-9 hours of sleep',
+                'Maintain a consistent sleep schedule',
+                'Create a relaxing bedtime routine'
+            ]
+        elif quality_score < 0.8:
+            status = 'fair'
+            recommendations = [
+                'You\'re getting close to optimal sleep',
+                'Try to get to bed 30 minutes earlier',
+                'Limit screen time before bed'
+            ]
+        else:
+            status = 'good'
+            recommendations = [
+                'Maintain your current sleep schedule',
+                'Keep your bedroom cool and dark',
+                'Continue monitoring your sleep quality'
+            ]
+            
+        return {
+            'quality_score': quality_score,
+            'status': status,
+            'recommendations': recommendations
+        }
+        
+    def analyze_recovery(self, activity_data, sleep_data, heart_rate_data):
+        """Analyze recovery status based on activity, sleep, and heart rate."""
+        if not activity_data or not sleep_data or not heart_rate_data:
+            return {
+                'status': 'unknown',
+                'confidence': 0,
+                'recommendations': ['Track more data to get recovery insights']
+            }
+            
+        # Simple recovery score based on sleep quality and heart rate
+        sleep_quality = self.analyze_sleep_quality(sleep_data, activity_data)
+        hr_analysis = self.analyze_heart_rate(heart_rate_data, None)
+        
+        if sleep_quality['status'] == 'good' and hr_analysis['status'] == 'normal':
+            status = 'ready'
+            recommendations = [
+                'You\'re ready for high-intensity training',
+                'Focus on performance goals',
+                'Stay hydrated during workouts'
+            ]
+        elif sleep_quality['status'] == 'poor' or hr_analysis['status'] == 'elevated':
+            status = 'needs_rest'
+            recommendations = [
+                'Take a rest day',
+                'Focus on light activities',
+                'Prioritize sleep tonight'
+            ]
+        else:
+            status = 'moderate'
+            recommendations = [
+                'Moderate intensity activities recommended',
+                'Listen to your body',
+                'Focus on technique over intensity'
+            ]
+            
+        return {
+            'status': status,
+            'confidence': 0.7,
+            'recommendations': recommendations
+        }
+        
+    def calculate_nutrition_needs(self, activity_data, user_profile):
+        """Calculate nutrition needs based on activity and profile."""
+        # Base metabolic rate using Harris-Benedict equation
+        if user_profile['gender'] == 'male':
+            bmr = 88.362 + (13.397 * user_profile['weight']) + \
+                  (4.799 * user_profile['height']) - (5.677 * user_profile['age'])
+        else:
+            bmr = 447.593 + (9.247 * user_profile['weight']) + \
+                  (3.098 * user_profile['height']) - (4.330 * user_profile['age'])
+                  
+        # Activity multiplier
         activity_multipliers = {
             'sedentary': 1.2,
             'light': 1.375,
             'moderate': 1.55,
-            'very': 1.725,
-            'extra': 1.9
+            'high': 1.725,
+            'athlete': 1.9
         }
         
-        # Calculate activity calories
-        activity_calories = sum(activity_data.get(hour, {}).get('calories', 0) for hour in range(24))
+        multiplier = activity_multipliers.get(user_profile['activity_level'], 1.2)
+        daily_calories = bmr * multiplier
         
-        # Total daily calories
-        total_calories = bmr * activity_multipliers.get(user_profile['activity_level'], 1.2) + activity_calories
-        
-        return round(total_calories)
-
-    def _calculate_macros(self, daily_calories, user_profile):
-        """Calculate macronutrient ratios based on goals"""
-        goals = user_profile.get('health_goals', '').lower()
-        
-        if 'weight loss' in goals:
-            protein_ratio = 0.4
-            carb_ratio = 0.3
-            fat_ratio = 0.3
-        elif 'muscle gain' in goals:
-            protein_ratio = 0.4
-            carb_ratio = 0.4
-            fat_ratio = 0.2
-        else:  # maintenance
-            protein_ratio = 0.3
-            carb_ratio = 0.4
-            fat_ratio = 0.3
+        # Adjust based on goal
+        if user_profile.get('goal_type') == 'weight_loss':
+            daily_calories *= 0.85  # 15% deficit
+        elif user_profile.get('goal_type') == 'muscle_gain':
+            daily_calories *= 1.1   # 10% surplus
+            
+        # Calculate macros
+        protein = user_profile['weight'] * 2  # 2g per kg
+        fat = (daily_calories * 0.25) / 9     # 25% of calories from fat
+        carbs = (daily_calories - (protein * 4 + fat * 9)) / 4  # Remainder from carbs
         
         return {
-            'protein': round(daily_calories * protein_ratio / 4),  # 4 calories per gram
-            'carbs': round(daily_calories * carb_ratio / 4),      # 4 calories per gram
-            'fat': round(daily_calories * fat_ratio / 9)          # 9 calories per gram
-        }
-
-    def _calculate_hydration_needs(self, activity_data, user_profile):
-        """Calculate hydration needs based on activity and user profile"""
-        # Base hydration (30ml per kg of body weight)
-        base_hydration = user_profile['weight'] * 30
-        
-        # Activity hydration (500ml per hour of moderate activity)
-        activity_hydration = sum(
-            500 * (activity_data.get(hour, {}).get('intensity', 0) / 100)
-            for hour in range(24)
-        )
-        
-        # Temperature adjustment (increase by 10% for every 5°C above 25°C)
-        avg_temperature = sum(
-            activity_data.get(hour, {}).get('temperature', 25)
-            for hour in range(24)
-        ) / 24
-        
-        if avg_temperature > 25:
-            temp_adjustment = 1 + ((avg_temperature - 25) / 5) * 0.1
-        else:
-            temp_adjustment = 1
-        
-        total_hydration = (base_hydration + activity_hydration) * temp_adjustment
-        
-        return round(total_hydration)
-
-    def _generate_heart_rate_recommendations(self, prediction, user_profile):
-        """Generate heart rate recommendations"""
-        recommendations = []
-        
-        if prediction < 0.3:  # High heart rate
-            recommendations.append("Your heart rate is elevated. Consider taking a break and practicing deep breathing.")
-            recommendations.append("Avoid strenuous activities until your heart rate returns to normal.")
-        elif prediction < 0.7:  # Elevated heart rate
-            recommendations.append("Your heart rate is slightly elevated. Monitor your activity level.")
-            recommendations.append("Stay hydrated and consider reducing intensity if symptoms persist.")
-        
-        return recommendations
-
-    def _generate_sleep_recommendations(self, quality_score, sleep_data):
-        """Generate sleep quality recommendations"""
-        recommendations = []
-        
-        if quality_score < 0.4:  # Poor sleep
-            recommendations.append("Your sleep quality was poor. Consider improving your sleep hygiene:")
-            recommendations.append("- Maintain a consistent sleep schedule")
-            recommendations.append("- Create a relaxing bedtime routine")
-            recommendations.append("- Avoid screens and caffeine before bed")
-        elif quality_score < 0.7:  # Fair sleep
-            recommendations.append("Your sleep quality was fair. Try to:")
-            recommendations.append("- Get more deep sleep")
-            recommendations.append("- Ensure your bedroom is dark and quiet")
-            recommendations.append("- Exercise during the day but not close to bedtime")
-        
-        return recommendations
-
-    def _generate_recovery_recommendations(self, prediction, activity_data):
-        """Generate recovery recommendations"""
-        recommendations = []
-        
-        if prediction < 0.3:  # Rest needed
-            recommendations.append("Your body needs rest. Consider:")
-            recommendations.append("- Taking a rest day")
-            recommendations.append("- Focusing on light activities like walking or stretching")
-            recommendations.append("- Prioritizing sleep and recovery")
-        elif prediction < 0.7:  # Moderate recovery
-            recommendations.append("Your recovery is moderate. You can:")
-            recommendations.append("- Engage in light to moderate activities")
-            recommendations.append("- Focus on mobility and flexibility")
-            recommendations.append("- Monitor your energy levels")
-        
-        return recommendations 
+            'daily_calories': int(daily_calories),
+            'macros': {
+                'protein': int(protein),
+                'fat': int(fat),
+                'carbs': int(carbs)
+            },
+            'hydration': int(user_profile['weight'] * 35)  # 35ml per kg
+        } 

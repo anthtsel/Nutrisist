@@ -1,5 +1,5 @@
 from flask import Blueprint
 
-bp = Blueprint('health_insights', __name__)
+health_insights = Blueprint('health_insights', __name__)
 
-from app.health_insights import routes 
+from . import routes 

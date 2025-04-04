@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Connect Your Health Data</h2>
+    
+    <div class="row">
+        <!-- Apple Health Card -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-heartbeat text-danger"></i> Apple Health
+                    </h5>
+                    <p class="card-text">
+                        Connect your Apple Health data to get insights about your:
+                        <ul>
+                            <li>Heart Rate & Variability</li>
+                            <li>Sleep Quality</li>
+                            <li>Activity & Steps</li>
+                            <li>Workouts</li>
+                        </ul>
+                    </p>
+                    {% if apple_connected %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> Connected
+                        <small class="d-block">Last sync: {{ apple_last_sync }}</small>
+                    </div>
+                    <button class="btn btn-outline-danger" onclick="disconnectPlatform('apple')">
+                        Disconnect
+                    </button>
+                    {% else %}
+                    <p class="text-muted small">
+                        Note: Requires iOS device with Health app
+                    </p>
+                    <button class="btn btn-primary" onclick="connectAppleHealth()">
+                        Connect Apple Health
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Garmin Connect Card -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-running text-primary"></i> Garmin Connect
+                    </h5>
+                    <p class="card-text">
+                        Connect your Garmin device data to get insights about your:
+                        <ul>
+                            <li>Heart Rate Zones</li>
+                            <li>Sleep Patterns</li>
+                            <li>Activity Tracking</li>
+                            <li>Stress Levels</li>
+                        </ul>
+                    </p>
+                    {% if garmin_connected %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> Connected
+                        <small class="d-block">Last sync: {{ garmin_last_sync }}</small>
+                    </div>
+                    <button class="btn btn-outline-danger" onclick="disconnectPlatform('garmin')">
+                        Disconnect
+                    </button>
+                    {% else %}
+                    <p class="text-muted small">
+                        You can also manually upload Garmin data files
+                    </p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="connectGarmin()">
+                            Connect Garmin
+                        </button>
+                        <a href="{{ url_for('health_insights.upload') }}" class="btn btn-outline-primary">
+                            Manual Upload
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if apple_connected or garmin_connected %}
+    <div class="mt-4">
+        <h4>Data Sync Settings</h4>
+        <div class="card">
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="syncInterval">Sync Frequency</label>
+                    <select class="form-control" id="syncInterval" onchange="updateSyncSettings()">
+                        <option value="1">Every hour</option>
+                        <option value="3">Every 3 hours</option>
+                        <option value="6">Every 6 hours</option>
+                        <option value="12">Every 12 hours</option>
+                        <option value="24">Once a day</option>
+                    </select>
+                </div>
+                <div class="form-check mt-3">
+                    <input type="checkbox" class="form-check-input" id="autoSync" checked onchange="updateSyncSettings()">
+                    <label class="form-check-label" for="autoSync">Enable automatic sync</label>
+                </div>
+                <button class="btn btn-outline-primary mt-3" onclick="syncNow()">
+                    Sync Now
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- JavaScript for platform connections -->
+<script>
+function connectAppleHealth() {
+    // Open Apple Health authorization flow
+    window.location.href = "{{ url_for('health_insights.connect_apple') }}";
+}
+
+function connectGarmin() {
+    // Open Garmin Connect authorization flow
+    window.location.href = "{{ url_for('health_insights.connect_garmin') }}";
+}
+
+function disconnectPlatform(platform) {
+    if (confirm(`Are you sure you want to disconnect ${platform}?`)) {
+        fetch("{{ url_for('health_insights.disconnect_platform', platform='') }}" + platform, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error disconnecting platform');
+            }
+        });
+    }
+}
+
+function updateSyncSettings() {
+    const interval = document.getElementById('syncInterval').value;
+    const autoSync = document.getElementById('autoSync').checked;
+    
+    fetch("{{ url_for('health_insights.update_sync_settings') }}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            interval: parseInt(interval),
+            autoSync: autoSync
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            alert('Error updating sync settings');
+        }
+    });
+}
+
+function syncNow() {
+    const button = event.target;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-sync fa-spin"></i> Syncing...';
+    
+    fetch("{{ url_for('health_insights.sync_now') }}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error syncing data');
+            button.disabled = false;
+            button.innerHTML = 'Sync Now';
+        }
+    });
+}
+</script>
+{% endblock %} 
