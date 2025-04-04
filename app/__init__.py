@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 from config import config
 import os
 from werkzeug.middleware.proxy_fix import ProxyFix
+from datetime import datetime
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -23,6 +24,13 @@ def create_app(config_name='default'):
     
     # Handle proxy headers for HTTPS
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
+    
+    # Add context processor for template variables
+    @app.context_processor
+    def utility_processor():
+        return {
+            'now': datetime.utcnow()
+        }
     
     # Force HTTPS
     @app.before_request
