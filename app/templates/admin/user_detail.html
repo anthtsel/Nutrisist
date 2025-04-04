@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}User Details - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>User Details</h1>
+        <a href="{{ url_for('admin.users') }}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> Back to Users
+        </a>
+    </div>
+    
+    <div class="row">
+        <!-- Basic Information -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Basic Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Username</dt>
+                        <dd class="col-sm-8">{{ user.username }}</dd>
+                        
+                        <dt class="col-sm-4">Email</dt>
+                        <dd class="col-sm-8">
+                            {{ user.email }}
+                            {% if user.email_verified %}
+                            <span class="badge bg-success">Verified</span>
+                            {% else %}
+                            <span class="badge bg-warning">Not Verified</span>
+                            {% endif %}
+                        </dd>
+                        
+                        <dt class="col-sm-4">Role</dt>
+                        <dd class="col-sm-8">
+                            <form action="{{ url_for('admin.change_user_role', id=user.id) }}" 
+                                  method="POST" 
+                                  class="d-flex align-items-center gap-2"
+                                  {% if user == current_user %}disabled{% endif %}>
+                                <select name="role" class="form-select form-select-sm w-auto">
+                                    {% for role in ['user', 'admin'] %}
+                                    <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>
+                                        {{ role|title }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" 
+                                        class="btn btn-sm btn-primary"
+                                        {% if user == current_user %}disabled{% endif %}>
+                                    Update Role
+                                </button>
+                            </form>
+                        </dd>
+                        
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">
+                            {% if user.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                            
+                            <form action="{{ url_for('admin.toggle_user_active', id=user.id) }}" 
+                                  method="POST" 
+                                  class="d-inline">
+                                <button type="submit" 
+                                        class="btn btn-sm {% if user.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}"
+                                        {% if user == current_user %}disabled{% endif %}>
+                                    {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                            </form>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Security Information -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Security Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Last Login</dt>
+                        <dd class="col-sm-8">
+                            {% if user.last_login %}
+                            {{ user.last_login.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                            Never
+                            {% endif %}
+                        </dd>
+                        
+                        <dt class="col-sm-4">Failed Attempts</dt>
+                        <dd class="col-sm-8">
+                            {{ user.failed_login_attempts }}
+                            {% if user.is_locked() %}
+                            <span class="badge bg-danger">Account Locked</span>
+                            {% endif %}
+                            
+                            {% if user.failed_login_attempts > 0 %}
+                            <form action="{{ url_for('admin.reset_login_attempts', id=user.id) }}" 
+                                  method="POST" 
+                                  class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-warning">
+                                    Reset Attempts
+                                </button>
+                            </form>
+                            {% endif %}
+                        </dd>
+                        
+                        <dt class="col-sm-4">Created At</dt>
+                        <dd class="col-sm-8">{{ user.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                        
+                        <dt class="col-sm-4">Updated At</dt>
+                        <dd class="col-sm-8">{{ user.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Health Information -->
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Health Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-2">Age</dt>
+                        <dd class="col-sm-4">{{ user.age if user.age else 'Not set' }}</dd>
+                        
+                        <dt class="col-sm-2">Gender</dt>
+                        <dd class="col-sm-4">{{ user.gender if user.gender else 'Not set' }}</dd>
+                        
+                        <dt class="col-sm-2">Height</dt>
+                        <dd class="col-sm-4">{{ user.height if user.height else 'Not set' }} cm</dd>
+                        
+                        <dt class="col-sm-2">Weight</dt>
+                        <dd class="col-sm-4">{{ user.weight if user.weight else 'Not set' }} kg</dd>
+                        
+                        <dt class="col-sm-2">BMI</dt>
+                        <dd class="col-sm-4">
+                            {% if user.calculate_bmi() %}
+                            {{ user.calculate_bmi() }} ({{ user.get_bmi_category() }})
+                            {% else %}
+                            Not available
+                            {% endif %}
+                        </dd>
+                        
+                        <dt class="col-sm-2">Activity Level</dt>
+                        <dd class="col-sm-4">{{ user.activity_level if user.activity_level else 'Not set' }}</dd>
+                        
+                        <dt class="col-sm-2">Health Goals</dt>
+                        <dd class="col-sm-10">{{ user.health_goals if user.health_goals else 'Not set' }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

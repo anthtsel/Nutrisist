@@ -115,6 +115,12 @@ document.getElementById('profileForm').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     const data = Object.fromEntries(formData.entries());
     
+    // Show loading state
+    const submitButton = this.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+    submitButton.disabled = true;
+
     fetch("{{ url_for('health_insights.update_profile') }}", {
         method: 'POST',
         headers: {
@@ -124,14 +130,46 @@ document.getElementById('profileForm').addEventListener('submit', function(e) {
     })
     .then(response => response.json())
     .then(data => {
+        // Reset button state
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+
         if (data.success) {
-            window.location.reload();
+            // Show success message
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <strong>Success!</strong> ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            this.insertAdjacentElement('beforebegin', alertDiv);
+            
+            // Reload page after a short delay
+            setTimeout(() => window.location.reload(), 1500);
         } else {
-            alert('Error updating profile: ' + data.error);
+            // Show error message
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <strong>Error!</strong> ${data.error}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            this.insertAdjacentElement('beforebegin', alertDiv);
         }
     })
     .catch(error => {
-        alert('Error updating profile: ' + error);
+        // Reset button state
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+
+        // Show error message
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+        alertDiv.innerHTML = `
+            <strong>Error!</strong> An unexpected error occurred. Please try again.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        this.insertAdjacentElement('beforebegin', alertDiv);
     });
 });
 </script>

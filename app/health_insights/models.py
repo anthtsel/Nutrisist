@@ -67,36 +67,43 @@ class UserProfile(db.Model):
 class HealthInsightModel:
     """Model for generating health insights."""
     
-    def analyze_heart_rate(self, heart_rate_data, user_profile):
+    def analyze_heart_rate(self, heart_rate_data):
         """Analyze heart rate data and generate insights."""
         if not heart_rate_data:
             return {
-                'status': 'no_data',
+                'status': 'NO_DATA',
                 'confidence': 0,
                 'recommendations': ['Start tracking your heart rate to get insights']
             }
             
         # Calculate average heart rate
-        heart_rates = [hr['value'] for hr in heart_rate_data]
+        heart_rates = [hr['value'] for hr in heart_rate_data if isinstance(hr, dict) and 'value' in hr]
+        if not heart_rates:
+            return {
+                'status': 'NO_DATA',
+                'confidence': 0,
+                'recommendations': ['No valid heart rate measurements found']
+            }
+            
         avg_hr = sum(heart_rates) / len(heart_rates)
         
         # Determine status based on average heart rate
         if avg_hr > 100:
-            status = 'elevated'
+            status = 'WARNING'
             recommendations = [
                 'Consider consulting a healthcare provider',
                 'Practice relaxation techniques',
                 'Monitor your caffeine intake'
             ]
         elif avg_hr < 60:
-            status = 'low'
+            status = 'INFO'
             recommendations = [
                 'This could be normal for athletes',
                 'Monitor for symptoms like dizziness',
                 'Ensure adequate hydration'
             ]
         else:
-            status = 'normal'
+            status = 'SUCCESS'
             recommendations = [
                 'Maintain your current lifestyle',
                 'Continue regular exercise',
@@ -109,17 +116,24 @@ class HealthInsightModel:
             'recommendations': recommendations
         }
         
-    def analyze_sleep_quality(self, sleep_data, activity_data):
+    def analyze_sleep(self, sleep_data):
         """Analyze sleep quality and generate insights."""
         if not sleep_data:
             return {
                 'quality_score': 0,
-                'status': 'no_data',
+                'status': 'NO_DATA',
                 'recommendations': ['Start tracking your sleep to get insights']
             }
             
         # Calculate average sleep duration
-        sleep_durations = [sleep['duration'] for sleep in sleep_data]
+        sleep_durations = [sleep['duration'] for sleep in sleep_data if isinstance(sleep, dict) and 'duration' in sleep]
+        if not sleep_durations:
+            return {
+                'quality_score': 0,
+                'status': 'NO_DATA',
+                'recommendations': ['No valid sleep measurements found']
+            }
+            
         avg_duration = sum(sleep_durations) / len(sleep_durations)
         
         # Calculate quality score (0-1)
@@ -127,21 +141,21 @@ class HealthInsightModel:
         
         # Generate recommendations
         if quality_score < 0.6:
-            status = 'poor'
+            status = 'WARNING'
             recommendations = [
                 'Aim for 7-9 hours of sleep',
                 'Maintain a consistent sleep schedule',
                 'Create a relaxing bedtime routine'
             ]
         elif quality_score < 0.8:
-            status = 'fair'
+            status = 'INFO'
             recommendations = [
                 'You\'re getting close to optimal sleep',
                 'Try to get to bed 30 minutes earlier',
                 'Limit screen time before bed'
             ]
         else:
-            status = 'good'
+            status = 'SUCCESS'
             recommendations = [
                 'Maintain your current sleep schedule',
                 'Keep your bedroom cool and dark',
@@ -154,39 +168,36 @@ class HealthInsightModel:
             'recommendations': recommendations
         }
         
-    def analyze_recovery(self, activity_data, sleep_data, heart_rate_data):
-        """Analyze recovery status based on activity, sleep, and heart rate."""
-        if not activity_data or not sleep_data or not heart_rate_data:
+    def analyze_recovery(self, profile):
+        """Analyze recovery status based on user profile."""
+        if not profile:
             return {
-                'status': 'unknown',
+                'status': 'NO_DATA',
                 'confidence': 0,
-                'recommendations': ['Track more data to get recovery insights']
+                'recommendations': ['Complete your profile to get recovery insights']
             }
             
-        # Simple recovery score based on sleep quality and heart rate
-        sleep_quality = self.analyze_sleep_quality(sleep_data, activity_data)
-        hr_analysis = self.analyze_heart_rate(heart_rate_data, None)
-        
-        if sleep_quality['status'] == 'good' and hr_analysis['status'] == 'normal':
-            status = 'ready'
+        # Base recovery analysis on activity level and goals
+        if profile.activity_level in ['high', 'athlete']:
+            status = 'WARNING'
             recommendations = [
-                'You\'re ready for high-intensity training',
-                'Focus on performance goals',
-                'Stay hydrated during workouts'
+                'Ensure adequate rest between intense workouts',
+                'Focus on proper nutrition and hydration',
+                'Monitor for signs of overtraining'
             ]
-        elif sleep_quality['status'] == 'poor' or hr_analysis['status'] == 'elevated':
-            status = 'needs_rest'
+        elif profile.activity_level == 'moderate':
+            status = 'SUCCESS'
             recommendations = [
-                'Take a rest day',
-                'Focus on light activities',
-                'Prioritize sleep tonight'
+                'Your activity level is well-balanced',
+                'Continue with your current routine',
+                'Consider gradually increasing intensity'
             ]
         else:
-            status = 'moderate'
+            status = 'INFO'
             recommendations = [
-                'Moderate intensity activities recommended',
-                'Listen to your body',
-                'Focus on technique over intensity'
+                'Consider increasing your activity level',
+                'Start with low-impact exercises',
+                'Set realistic weekly goals'
             ]
             
         return {
@@ -195,16 +206,17 @@ class HealthInsightModel:
             'recommendations': recommendations
         }
         
-    def calculate_nutrition_needs(self, activity_data, user_profile):
-        """Calculate nutrition needs based on activity and profile."""
-        # Base metabolic rate using Harris-Benedict equation
-        if user_profile['gender'] == 'male':
-            bmr = 88.362 + (13.397 * user_profile['weight']) + \
-                  (4.799 * user_profile['height']) - (5.677 * user_profile['age'])
+    def analyze_nutrition(self, profile):
+        """Calculate nutrition needs based on profile."""
+        if not profile:
+            return None
+            
+        # Calculate BMR using Harris-Benedict equation
+        if profile.gender.lower() == 'male':
+            bmr = 88.362 + (13.397 * profile.weight) + (4.799 * profile.height) - (5.677 * profile.age)
         else:
-            bmr = 447.593 + (9.247 * user_profile['weight']) + \
-                  (3.098 * user_profile['height']) - (4.330 * user_profile['age'])
-                  
+            bmr = 447.593 + (9.247 * profile.weight) + (3.098 * profile.height) - (4.330 * profile.age)
+            
         # Activity multiplier
         activity_multipliers = {
             'sedentary': 1.2,
@@ -214,26 +226,24 @@ class HealthInsightModel:
             'athlete': 1.9
         }
         
-        multiplier = activity_multipliers.get(user_profile['activity_level'], 1.2)
+        multiplier = activity_multipliers.get(profile.activity_level.lower(), 1.2)
         daily_calories = bmr * multiplier
         
         # Adjust based on goal
-        if user_profile.get('goal_type') == 'weight_loss':
+        if profile.goal_type == 'weight_loss':
             daily_calories *= 0.85  # 15% deficit
-        elif user_profile.get('goal_type') == 'muscle_gain':
-            daily_calories *= 1.1   # 10% surplus
+            macros = {'protein': 40, 'carbs': 30, 'fat': 30}
+        elif profile.goal_type == 'muscle_gain':
+            daily_calories *= 1.1  # 10% surplus
+            macros = {'protein': 30, 'carbs': 50, 'fat': 20}
+        else:  # maintenance or fitness
+            macros = {'protein': 30, 'carbs': 40, 'fat': 30}
             
-        # Calculate macros
-        protein = user_profile['weight'] * 2  # 2g per kg
-        fat = (daily_calories * 0.25) / 9     # 25% of calories from fat
-        carbs = (daily_calories - (protein * 4 + fat * 9)) / 4  # Remainder from carbs
+        # Calculate water needs (ml) - basic calculation
+        hydration = profile.weight * 35  # 35ml per kg of body weight
         
         return {
-            'daily_calories': int(daily_calories),
-            'macros': {
-                'protein': int(protein),
-                'fat': int(fat),
-                'carbs': int(carbs)
-            },
-            'hydration': int(user_profile['weight'] * 35)  # 35ml per kg
+            'daily_calories': daily_calories,
+            'macros': macros,
+            'hydration': hydration
         } 

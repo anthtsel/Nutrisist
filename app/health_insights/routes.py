@@ -46,38 +46,59 @@ def update_profile():
         
         # Validate required fields
         required_fields = ['name', 'age', 'weight', 'height', 'gender', 'activity_level', 'goal_type', 'weekly_activity_target']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({'error': f'Missing required field: {field}'}), 400
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        if missing_fields:
+            return jsonify({
+                'success': False,
+                'error': f'Missing required fields: {", ".join(missing_fields)}'
+            }), 400
         
         # Get or create user profile
         profile = UserProfile.query.filter_by(user_id=current_user.id).first()
         if not profile:
             profile = UserProfile(user_id=current_user.id)
         
-        # Update profile fields
-        profile.name = data['name']
-        profile.age = int(data['age'])
-        profile.weight = float(data['weight'])
-        profile.height = int(data['height'])
-        profile.gender = data['gender']
-        profile.activity_level = data['activity_level']
-        profile.goal_type = data['goal_type']
-        profile.weekly_activity_target = float(data['weekly_activity_target'])
-        profile.medical_conditions = data.get('medical_conditions', '')
-        profile.medications = data.get('medications', '')
-        profile.updated_at = datetime.now()
+        try:
+            # Update profile fields with type validation
+            profile.name = str(data['name']).strip()
+            profile.age = int(data['age'])
+            profile.weight = float(data['weight'])
+            profile.height = int(data['height'])
+            profile.gender = str(data['gender'])
+            profile.activity_level = str(data['activity_level'])
+            profile.goal_type = str(data['goal_type'])
+            profile.weekly_activity_target = float(data['weekly_activity_target'])
+            profile.medical_conditions = str(data.get('medical_conditions', '')).strip()
+            profile.medications = str(data.get('medications', '')).strip()
+            profile.updated_at = datetime.now()
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid data format: {str(e)}'
+            }), 400
         
         # Save to database
-        db.session.add(profile)
-        db.session.commit()
-        
-        flash('Profile updated successfully', 'success')
-        return jsonify({'success': True})
-        
+        try:
+            db.session.add(profile)
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': 'Profile updated successfully'
+            })
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Database error while updating profile: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save profile changes. Please try again.'
+            }), 500
+            
     except Exception as e:
         logger.error(f"Error updating profile: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': 'An unexpected error occurred. Please try again.'
+        }), 500
 
 @health_insights.route('/connect')
 @login_required
@@ -277,7 +298,52 @@ def dashboard():
 @login_required
 def analyze():
     """Show health data analysis."""
-    return render_template('health_insights/analyze.html')
+    try:
+        # Get user profile
+        profile = UserProfile.query.filter_by(user_id=current_user.id).first()
+        if not profile:
+            return render_template('health_insights/analyze.html', 
+                                error="Please complete your profile first to get personalized insights.")
+
+        # Initialize health insight model
+        insight_model = HealthInsightModel()
+        
+        # Get data from connected platforms
+        apple_data = {}
+        garmin_data = {}
+        
+        apple_platform = platforms.get(f'apple_{current_user.id}')
+        if apple_platform:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=7)
+            apple_data = {
+                'heart_rate': apple_platform.fetch_data(DataType.HEART_RATE, start_date, end_date),
+                'sleep': apple_platform.fetch_data(DataType.SLEEP, start_date, end_date)
+            }
+            
+        garmin_platform = platforms.get(f'garmin_{current_user.id}')
+        if garmin_platform:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=7)
+            garmin_data = {
+                'heart_rate': garmin_platform.fetch_data(DataType.HEART_RATE, start_date, end_date),
+                'sleep': garmin_platform.fetch_data(DataType.SLEEP, start_date, end_date)
+            }
+
+        # Generate insights
+        insights = {
+            'heart_rate': insight_model.analyze_heart_rate(apple_data.get('heart_rate', []) + garmin_data.get('heart_rate', [])),
+            'sleep': insight_model.analyze_sleep(apple_data.get('sleep', []) + garmin_data.get('sleep', [])),
+            'recovery': insight_model.analyze_recovery(profile),
+            'nutrition': insight_model.analyze_nutrition(profile)
+        }
+
+        return render_template('health_insights/analyze.html', insights=insights)
+        
+    except Exception as e:
+        logger.error(f"Error generating health insights: {str(e)}")
+        return render_template('health_insights/analyze.html', 
+                             error="An error occurred while generating your health insights. Please try again later.")
 
 @health_insights.route('/alerts')
 @login_required

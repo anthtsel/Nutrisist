@@ -1,0 +1,14 @@
+Dear {{ user.username }},
+
+Welcome to Health & Diet Plan! To complete your registration and access all features, please verify your email address by clicking the link below:
+
+{{ verification_url }}
+
+This verification link will expire in 24 hours.
+
+If you did not create an account, please ignore this email.
+
+Best regards,
+The Health & Diet Plan Team
+
+Note: This is an automated message, please do not reply to this email. 
