@@ -1,8 +1,10 @@
-from flask import Flask, redirect, url_for, render_template
+from flask import Flask, request, redirect, url_for, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
-from config import Config
+from flask_migrate import Migrate
+from config import config
 import os
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -10,13 +12,45 @@ login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
 
-def create_app(config_class=Config):
+def create_app(config_name='default'):
     app = Flask(__name__)
-    app.config.from_object(config_class)
+    app.config.from_object(config[config_name])
     
     # Initialize extensions with app
     db.init_app(app)
     login_manager.init_app(app)
+    Migrate(app, db)
+    
+    # Handle proxy headers for HTTPS
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
+    
+    # Force HTTPS
+    @app.before_request
+    def before_request():
+        # Don't redirect in development
+        if not app.debug and not request.is_secure:
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
+
+    # Add security headers
+    @app.after_request
+    def add_security_headers(response):
+        # HTTP Strict Transport Security
+        if app.config['STRICT_TRANSPORT_SECURITY']:
+            hsts_header = f'max-age={app.config["STRICT_TRANSPORT_SECURITY_MAX_AGE"]}'
+            if app.config['STRICT_TRANSPORT_SECURITY_INCLUDE_SUBDOMAINS']:
+                hsts_header += '; includeSubDomains'
+            if app.config['STRICT_TRANSPORT_SECURITY_PRELOAD']:
+                hsts_header += '; preload'
+            response.headers['Strict-Transport-Security'] = hsts_header
+        
+        # Other security headers
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        
+        return response
     
     # Ensure upload directories exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -44,15 +78,10 @@ def create_app(config_class=Config):
             return redirect(url_for('health_insights.dashboard'))
         return redirect(url_for('auth.login'))
     
-    # Error handlers
-    @app.errorhandler(404)
-    def not_found_error(error):
-        return render_template('errors/404.html'), 404
-    
-    @app.errorhandler(500)
-    def internal_error(error):
-        db.session.rollback()
-        return render_template('errors/500.html'), 500
+    # Register error handlers
+    from .errors import not_found_error, internal_error
+    app.register_error_handler(404, not_found_error)
+    app.register_error_handler(500, internal_error)
     
     # Create database tables
     with app.app_context():
