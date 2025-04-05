@@ -80,13 +80,18 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label for="excluded-foods" class="form-label">Excluded Foods</label>
-                                    <select class="form-select" id="excluded-foods" name="excluded_foods" multiple>
-                                        <option value="nuts">Nuts</option>
-                                        <option value="shellfish">Shellfish</option>
-                                        <option value="dairy">Dairy</option>
-                                        <option value="eggs">Eggs</option>
-                                        <option value="soy">Soy</option>
-                                        <option value="gluten">Gluten</option>
+                                    <input type="text" class="form-control" id="excluded-foods" name="excluded_foods" 
+                                           placeholder="Enter foods to exclude (comma-separated)">
+                                    <small class="text-muted">Example: nuts, shellfish, dairy</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="servings" class="form-label">Servings</label>
+                                    <select class="form-select" id="servings" name="servings">
+                                        <option value="1">1 serving</option>
+                                        <option value="2">2 servings</option>
+                                        <option value="4">4 servings (Family)</option>
                                     </select>
                                 </div>
                             </div>
@@ -115,7 +120,7 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <div id="mealPlan">
+                    <div id="meal-plan">
                         <!-- Meal plan will be populated here -->
                     </div>
                 </div>
@@ -149,6 +154,17 @@
             </div>
         </div>
     </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3 class="mb-0">Meal Prep Schedule</h3>
+        </div>
+        <div class="card-body">
+            <div id="prep-schedule">
+                <!-- Meal prep schedule will be populated here -->
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -160,41 +176,20 @@ document.addEventListener('DOMContentLoaded', function() {
     let weeklyPlan = null;
     let groceryList = null;
 
+    // Add formatDay function
+    function formatDay(day) {
+        const dayNum = day.split('_')[1];
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        return `${days[dayNum % 7]} (Day ${dayNum})`;
+    }
+
     // Load initial nutrition advice
     fetchNutritionAdvice();
 
     // Form submission
     document.getElementById('mealPreferencesForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        const preferences = {
-            dietary_type: document.getElementById('dietary-type').value,
-            excluded_foods: Array.from(document.getElementById('excluded-foods').selectedOptions).map(opt => opt.value),
-            meal_count: parseInt(document.getElementById('meal-count').value)
-        };
-        
-        fetch("{{ url_for('health_insights.generate_meal_plan') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(preferences)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                weeklyPlan = data.data.weekly_plan;
-                groceryList = data.data.grocery_list;
-                currentDay = 1;
-                updateMealPlanDisplay();
-                updateGroceryList(data.data.grocery_list, data.data.shopping_links);
-            } else {
-                showError(data.message || 'Failed to generate meal plan');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showError('An error occurred while generating the meal plan');
-        });
+        generateMealPlan();
     });
 
     // Day navigation
@@ -251,57 +246,170 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!weeklyPlan) return;
         
-        const dayPlan = weeklyPlan[`day_${currentDay}`];
-        const mealPlanContainer = document.getElementById('mealPlan');
-        mealPlanContainer.innerHTML = '';
+        const mealPlanDiv = document.getElementById('meal-plan');
+        const dayKey = `day_${currentDay}`;
+        const meals = weeklyPlan[dayKey];
         
-        for (const [meal, details] of Object.entries(dayPlan)) {
-            const mealCard = document.createElement('div');
-            mealCard.className = 'card mb-3';
-            mealCard.innerHTML = `
+        if (!meals) {
+            mealPlanDiv.innerHTML = '<div class="alert alert-info">No meals planned for this day.</div>';
+            return;
+        }
+
+        let html = `
+            <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="mb-0">${meal.replace('_', ' ').toUpperCase()}</h5>
+                    <h4 class="mb-0">${formatDay(dayKey)}</h4>
                 </div>
                 <div class="card-body">
-                    <h6>${details.name}</h6>
-                    <p>Calories: ${details.calories}</p>
-                    <div class="row">
-                        <div class="col">
-                            <small>Protein: ${details.macros.protein.grams}g</small>
+                    ${Object.entries(meals).map(([mealType, details]) => `
+                        <div class="meal-section mb-4">
+                            <h5 class="text-capitalize">${mealType}</h5>
+                            <div class="recipe-card">
+                                <h6>${details.name}</h6>
+                                <div class="ingredients-list mb-3">
+                                    <strong>Ingredients:</strong>
+                                    <ul class="list-unstyled">
+                                        ${Object.entries(details.ingredients).map(([item, info]) => `
+                                            <li>${info.amount}${info.unit} ${item}</li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                                <div class="instructions-list">
+                                    <strong>Instructions:</strong>
+                                    <ol class="ps-3">
+                                        ${details.instructions.map(step => `
+                                            <li>${step}</li>
+                                        `).join('')}
+                                    </ol>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col">
-                            <small>Carbs: ${details.macros.carbs.grams}g</small>
-                        </div>
-                        <div class="col">
-                            <small>Fat: ${details.macros.fat.grams}g</small>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        mealPlanDiv.innerHTML = html;
+    }
+
+    function displayMealPlan(mealPlan) {
+        weeklyPlan = mealPlan;  // Store the full meal plan
+        updateMealPlanDisplay();  // Show current day's meals
+    }
+
+    function displayPrepSchedule(prepSchedule) {
+        const prepScheduleDiv = document.getElementById('prep-schedule');
+        let html = `
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="prep-day mb-4">
+                        <h4>Sunday Prep</h4>
+                        <div class="list-group">
+                            ${prepSchedule.prep_day_1.meals.map(meal => `
+                                <div class="list-group-item">
+                                    <h6 class="mb-1">${meal.recipe}</h6>
+                                    <small>For: ${meal.day} - ${meal.meal}</small>
+                                </div>
+                            `).join('')}
                         </div>
                     </div>
-                    <hr>
-                    <h6>Ingredients:</h6>
-                    <ul class="list-unstyled">
-                        ${details.ingredients.map(ingredient => 
-                            `<li>${ingredient.amount}${ingredient.unit} ${ingredient.name}</li>`
-                        ).join('')}
-                    </ul>
                 </div>
-            `;
-            mealPlanContainer.appendChild(mealCard);
-        }
+                <div class="col-md-6">
+                    <div class="prep-day mb-4">
+                        <h4>Wednesday Prep</h4>
+                        <div class="list-group">
+                            ${prepSchedule.prep_day_2.meals.map(meal => `
+                                <div class="list-group-item">
+                                    <h6 class="mb-1">${meal.recipe}</h6>
+                                    <small>For: ${meal.day} - ${meal.meal}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="fresh-cooking mt-4">
+                <h4>Fresh Cooking Required</h4>
+                <div class="list-group">
+                    ${prepSchedule.fresh_cooking.map(meal => `
+                        <div class="list-group-item">
+                            <h6 class="mb-1">${meal.recipe}</h6>
+                            <small>On: ${meal.day} - ${meal.meal}</small>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        prepScheduleDiv.innerHTML = html;
+    }
+
+    function generateMealPlan() {
+        const excludedFoods = document.getElementById('excluded-foods').value
+            .split(',')
+            .map(food => food.trim())
+            .filter(food => food.length > 0);
+
+        const preferences = {
+            dietary_type: document.getElementById('dietary-type').value,
+            excluded_foods: excludedFoods,
+            meal_count: parseInt(document.getElementById('meal-count').value),
+            servings: parseInt(document.getElementById('servings').value)
+        };
+        
+        fetch("{{ url_for('health_insights.generate_meal_plan') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(preferences)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                weeklyPlan = data.data.meal_plan;
+                updateMealPlanDisplay();
+                updateGroceryList(data.data.grocery_list, data.data.shopping_links);
+                displayPrepSchedule(data.data.prep_schedule);
+                document.getElementById('meal-plan').style.display = 'block';
+            } else {
+                showError(data.message || 'Failed to generate meal plan');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('An error occurred while generating the meal plan');
+        });
     }
 
     function updateGroceryList(groceryList, shoppingLinks) {
         const groceryListDiv = document.getElementById('grocery-list');
         let html = '<div class="row">';
         
-        // Display grocery items by category
-        for (const [category, items] of Object.entries(groceryList)) {
+        // Group items by category
+        const categorizedItems = {};
+        for (const [item, details] of Object.entries(groceryList)) {
+            const category = item.includes('chicken') || item.includes('fish') || item.includes('beef') ? 'Proteins' :
+                           item.includes('rice') || item.includes('pasta') || item.includes('bread') ? 'Carbs' :
+                           item.includes('broccoli') || item.includes('spinach') || item.includes('carrot') ? 'Vegetables' :
+                           item.includes('apple') || item.includes('banana') || item.includes('berr') ? 'Fruits' :
+                           'Other';
+            
+            if (!categorizedItems[category]) {
+                categorizedItems[category] = [];
+            }
+            categorizedItems[category].push({ item, ...details });
+        }
+        
+        // Display items by category
+        for (const [category, items] of Object.entries(categorizedItems)) {
             html += `
                 <div class="col-md-6 mb-4">
-                    <h5 class="text-capitalize">${category}</h5>
+                    <h5>${category}</h5>
                     <ul class="list-group">
-                        ${Object.entries(items).map(([item, details]) => `
+                        ${items.map(({ item, amount, unit }) => `
                             <li class="list-group-item">
-                                ${details.amount}${details.unit} ${item}
+                                ${Math.round(amount * 10) / 10}${unit} ${item}
                             </li>
                         `).join('')}
                     </ul>
@@ -311,27 +419,60 @@ document.addEventListener('DOMContentLoaded', function() {
         html += '</div>';
         groceryListDiv.innerHTML = html;
         
-        // Display shopping links
-        if (shoppingLinks) {
-            const instacartLink = document.getElementById('instacart-link');
-            const amazonFreshLink = document.getElementById('amazon-fresh-link');
-            
-            if (shoppingLinks.instacart) {
-                instacartLink.href = shoppingLinks.instacart.url;
-                instacartLink.style.display = 'inline-block';
-            }
-            
-            if (shoppingLinks.amazon_fresh) {
-                amazonFreshLink.href = shoppingLinks.amazon_fresh.url;
-                amazonFreshLink.style.display = 'inline-block';
-            }
+        // Update shopping links
+        const instacartLink = document.getElementById('instacart-link');
+        const amazonFreshLink = document.getElementById('amazon-fresh-link');
+        
+        if (shoppingLinks?.instacart?.url) {
+            instacartLink.href = shoppingLinks.instacart.url;
+            instacartLink.style.display = 'inline-block';
+        } else {
+            instacartLink.style.display = 'none';
+        }
+        
+        if (shoppingLinks?.amazon_fresh?.url) {
+            amazonFreshLink.href = shoppingLinks.amazon_fresh.url;
+            amazonFreshLink.style.display = 'inline-block';
+        } else {
+            amazonFreshLink.style.display = 'none';
         }
     }
 
     function showError(message) {
-        // Add error handling UI here
-        alert(message);
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+        errorDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.container').firstChild);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            errorDiv.remove();
+        }, 5000);
     }
 });
 </script>
+
+<style>
+.recipe-card {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-top: 0.5rem;
+}
+
+.prep-day {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    padding: 1rem;
+}
+
+.fresh-cooking {
+    background-color: #fff3cd;
+    border-radius: 0.25rem;
+    padding: 1rem;
+}
+</style>
 {% endblock %} 
