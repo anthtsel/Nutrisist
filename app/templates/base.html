@@ -32,16 +32,27 @@
                 <ul class="navbar-nav me-auto">
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('health_insights.dashboard') }}">Dashboard</a>
+                        <a class="nav-link" href="{{ url_for('health_insights.dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('health_insights.connect') }}">Connect Devices</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('health_insights.analyze') }}">Analysis</a>
+                        <a class="nav-link" href="{{ url_for('health_insights.analyze') }}">
+                            <i class="bi bi-graph-up"></i> Health Analysis
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('health_insights.alerts') }}">Alerts</a>
+                        <a class="nav-link" href="{{ url_for('health_insights.meal_plan') }}">
+                            <i class="bi bi-calendar3"></i> Meal Planning
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('health_insights.recovery') }}">
+                            <i class="bi bi-heart-pulse"></i> Recovery Status
+                        </a>
                     </li>
                     {% endif %}
                 </ul>

@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta
 import logging
 from werkzeug.utils import secure_filename
-from .models import HealthInsightModel, DataType, UserProfile
+from .models import HealthInsightModel, DataType, UserProfile, RecoveryAssistant, NutritionAdvisor, MealPlanner
 from .data_processor import GarminDataProcessor
 from .platforms.apple_health import AppleHealthPlatform
 from . import health_insights
@@ -349,4 +349,183 @@ def analyze():
 @login_required
 def alerts():
     """Show health alerts."""
-    return render_template('health_insights/alerts.html') 
+    return render_template('health_insights/alerts.html')
+
+@health_insights.route('/recovery-status')
+@login_required
+def recovery_status():
+    """Get personalized recovery status and recommendations."""
+    try:
+        # Get user's recent sleep and HRV data
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        # Get data from connected platforms
+        sleep_data = []
+        hrv_data = []
+        
+        # Fetch from Apple Health if connected
+        apple_platform = platforms.get(f'apple_{current_user.id}')
+        if apple_platform:
+            sleep_data.extend(apple_platform.fetch_data(DataType.SLEEP, start_date, end_date))
+            hrv_data.extend(apple_platform.fetch_data(DataType.HEART_RATE, start_date, end_date))
+            
+        # Fetch from Garmin if connected
+        garmin_platform = platforms.get(f'garmin_{current_user.id}')
+        if garmin_platform:
+            sleep_data.extend(garmin_platform.fetch_data(DataType.SLEEP, start_date, end_date))
+            hrv_data.extend(garmin_platform.fetch_data(DataType.HEART_RATE, start_date, end_date))
+        
+        # Calculate average scores
+        sleep_scores = [data.get('sleep_score', 0) for data in sleep_data if isinstance(data, dict)]
+        hrv_scores = [data.get('hrv_score', 0) for data in hrv_data if isinstance(data, dict)]
+        
+        current_sleep_score = sleep_scores[-1] if sleep_scores else 0
+        current_hrv_score = hrv_scores[-1] if hrv_scores else 0
+        
+        user_data = {
+            'sleep_score': current_sleep_score,
+            'hrv_score': current_hrv_score,
+            'user_averages': {
+                'sleep_score': sum(sleep_scores) / len(sleep_scores) if sleep_scores else 0,
+                'hrv_score': sum(hrv_scores) / len(hrv_scores) if hrv_scores else 0
+            }
+        }
+        
+        # Get recovery recommendations
+        recovery_assistant = RecoveryAssistant()
+        recovery_status = recovery_assistant.analyze_recovery_status(user_data)
+        
+        return jsonify({
+            'status': 'success',
+            'data': recovery_status
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in recovery status: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to analyze recovery status'
+        }), 500
+
+@health_insights.route('/nutrition-advice')
+@login_required
+def nutrition_advice():
+    """Get personalized nutrition advice."""
+    try:
+        # Get user profile and activity data
+        profile = UserProfile.query.filter_by(user_id=current_user.id).first()
+        if not profile:
+            return jsonify({
+                'status': 'error',
+                'message': 'Please complete your profile first'
+            }), 400
+        
+        # Get recent activity data
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        calories_burned = 0
+        # Fetch from connected platforms
+        for platform_id in ['apple', 'garmin']:
+            platform = platforms.get(f'{platform_id}_{current_user.id}')
+            if platform:
+                activity_data = platform.fetch_data(DataType.ACTIVITY, start_date, end_date)
+                calories_burned += sum(
+                    activity.get('calories_burned', 0) 
+                    for activity in activity_data 
+                    if isinstance(activity, dict)
+                )
+        
+        # Average daily calories burned
+        avg_daily_calories_burned = calories_burned / 7
+        
+        # Prepare user data for nutrition advisor
+        user_data = {
+            'weight': profile.weight,
+            'height': profile.height,
+            'age': profile.age,
+            'gender': profile.gender,
+            'activity_level': profile.activity_level,
+            'goal': profile.goal_type,
+            'calories_burned': avg_daily_calories_burned
+        }
+        
+        # Get nutrition recommendations
+        nutrition_advisor = NutritionAdvisor()
+        nutrition_advice = nutrition_advisor.calculate_nutrition_needs(user_data)
+        
+        return jsonify({
+            'status': 'success',
+            'data': nutrition_advice
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in nutrition advice: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to generate nutrition advice'
+        }), 500
+
+@health_insights.route('/meal-plan', methods=['POST'])
+@login_required
+def generate_meal_plan():
+    """Generate a personalized meal plan."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No data provided'
+            }), 400
+            
+        # Get user's nutrition needs
+        nutrition_response = nutrition_advice()
+        if nutrition_response.status_code != 200:
+            return nutrition_response
+            
+        nutrition_data = nutrition_response.get_json()
+        if nutrition_data['status'] != 'success':
+            return nutrition_response
+            
+        # Get user preferences from request
+        preferences = {
+            'dietary_type': data.get('dietary_type', 'balanced'),
+            'excluded_foods': data.get('excluded_foods', []),
+            'meal_count': data.get('meal_count', 4)
+        }
+        
+        # Generate meal plan
+        meal_planner = MealPlanner()
+        meal_plan = meal_planner.generate_meal_plan(
+            nutrition_data['data'],
+            preferences
+        )
+        
+        # Generate shopping links
+        shopping_links = meal_planner.generate_shopping_links(meal_plan['grocery_list'])
+        meal_plan['shopping_links'] = shopping_links
+        
+        return jsonify({
+            'status': 'success',
+            'data': meal_plan
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating meal plan: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to generate meal plan'
+        }), 500
+
+@health_insights.route('/meal-plan')
+@login_required
+def meal_plan():
+    """Show meal plan page."""
+    return render_template('health_insights/meal_plan.html')
+
+@health_insights.route('/recovery')
+@login_required
+def recovery():
+    """Show recovery page."""
+    return render_template('health_insights/recovery.html') 
