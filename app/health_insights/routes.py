@@ -481,18 +481,28 @@ def generate_meal_plan():
             
         # Get user's nutrition needs
         nutrition_response = nutrition_advice()
+        if isinstance(nutrition_response, tuple):
+            nutrition_response = nutrition_response[0]
+            
         if nutrition_response.status_code != 200:
-            return nutrition_response
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to get nutrition advice'
+            }), 500
             
         nutrition_data = nutrition_response.get_json()
         if nutrition_data['status'] != 'success':
-            return nutrition_response
+            return jsonify({
+                'status': 'error',
+                'message': nutrition_data.get('message', 'Failed to get nutrition advice')
+            }), 500
             
         # Get user preferences from request
         preferences = {
             'dietary_type': data.get('dietary_type', 'balanced'),
             'excluded_foods': data.get('excluded_foods', []),
-            'meal_count': data.get('meal_count', 4)
+            'meal_count': data.get('meal_count', 4),
+            'servings': data.get('servings', 1)
         }
         
         # Generate meal plan
@@ -502,13 +512,66 @@ def generate_meal_plan():
             preferences
         )
         
+        if not meal_plan:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to generate meal plan'
+            }), 500
+        
         # Generate shopping links
         shopping_links = meal_planner.generate_shopping_links(meal_plan['grocery_list'])
-        meal_plan['shopping_links'] = shopping_links
+        
+        # Save meal plan to database
+        try:
+            meal_service = MealService()
+            start_date = datetime.utcnow()
+            end_date = start_date + timedelta(days=6)
+            
+            # Create meal plan in database
+            db_meal_plan = meal_service.create_meal_plan(
+                user_id=current_user.id,
+                name=f"Weekly Meal Plan - {start_date.strftime('%Y-%m-%d')}",
+                start_date=start_date,
+                end_date=end_date,
+                description="Generated meal plan based on nutrition needs and preferences"
+            )
+            
+            # Add meals to the plan
+            for day, meals in meal_plan['weekly_plan'].items():
+                day_of_week = int(day.split('_')[1]) - 1  # Convert to 0-6 for Monday-Sunday
+                for meal_type, meal in meals.items():
+                    db_meal = meal_service.add_meal_to_plan(
+                        meal_plan_id=db_meal_plan.id,
+                        day_of_week=day_of_week,
+                        meal_type=meal_type,
+                        name=meal['name'],
+                        description="\n".join(meal['instructions']),
+                        calories=meal['calories'],
+                        protein=meal['macros']['protein']['grams'],
+                        carbs=meal['macros']['carbs']['grams'],
+                        fat=meal['macros']['fat']['grams']
+                    )
+                    
+                    # Add ingredients to the meal
+                    for ingredient in meal['ingredients']:
+                        meal_service.add_ingredient_to_meal(
+                            meal_id=db_meal.id,
+                            name=ingredient['name'],
+                            quantity=ingredient['amount'],
+                            unit=ingredient['unit']
+                        )
+        except Exception as e:
+            current_app.logger.error(f"Error saving meal plan to database: {str(e)}")
+            # Continue with response even if database save fails
         
         return jsonify({
             'status': 'success',
-            'data': meal_plan
+            'data': {
+                'meal_plan': meal_plan['weekly_plan'],
+                'grocery_list': meal_plan['grocery_list'],
+                'prep_schedule': meal_plan['prep_schedule'],
+                'shopping_links': shopping_links
+            }
         })
         
     except Exception as e:

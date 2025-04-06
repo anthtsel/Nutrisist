@@ -39,7 +39,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'generate-a-secure-key-in-production'
     
     # Database Configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///' + os.path.join(basedir, 'app.db')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('POSTGRES_URI') or os.environ.get('DATABASE_URL') or 'sqlite:///' + os.path.join(basedir, 'app.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Email Configuration

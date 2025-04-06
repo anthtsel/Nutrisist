@@ -4,6 +4,7 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 from math import ceil
+from flask import current_app
 
 class DataType(Enum):
     HEART_RATE = "heart_rate"
@@ -426,62 +427,303 @@ class MealPlanner:
     """Generates personalized meal plans and grocery lists."""
     
     def __init__(self):
-        self.meal_categories = ['breakfast', 'lunch', 'dinner', 'snacks']
+        self.meal_categories = {
+            'breakfast': 'Breakfast',
+            'lunch': 'Lunch',
+            'dinner': 'Dinner',
+            'snacks': 'Snacks'
+        }
         self.food_categories = {
-            'proteins': ['chicken', 'fish', 'beef', 'eggs', 'tofu'],
-            'carbs': ['rice', 'quinoa', 'pasta', 'bread', 'potatoes'],
-            'vegetables': ['broccoli', 'spinach', 'carrots', 'peppers'],
-            'fruits': ['apples', 'bananas', 'berries', 'oranges'],
-            'healthy_fats': ['avocado', 'olive oil', 'nuts', 'seeds']
+            'proteins': ['chicken', 'fish', 'beef', 'eggs', 'tofu', 'lentils', 'beans', 'pork', 'turkey', 'shrimp'],
+            'carbs': ['rice', 'quinoa', 'pasta', 'bread', 'potatoes', 'oats', 'corn', 'sweet potatoes', 'barley', 'couscous'],
+            'vegetables': ['broccoli', 'spinach', 'carrots', 'peppers', 'kale', 'zucchini', 'cauliflower', 'asparagus', 'brussels sprouts', 'green beans'],
+            'fruits': ['apples', 'bananas', 'berries', 'oranges', 'grapes', 'melon', 'pears', 'peaches', 'pineapple', 'mango'],
+            'healthy_fats': ['avocado', 'olive oil', 'nuts', 'seeds', 'coconut oil', 'almond butter', 'peanut butter', 'walnuts', 'chia seeds', 'flaxseeds'],
+            'dairy': ['milk', 'yogurt', 'cheese', 'cottage cheese', 'greek yogurt', 'cream cheese', 'sour cream'],
+            'condiments': ['salt', 'pepper', 'garlic', 'onion', 'herbs', 'spices', 'vinegar', 'soy sauce', 'hot sauce', 'mustard']
+        }
+        
+        # Sample recipes for each meal type
+        self.recipes = {
+            'breakfast': [
+                {
+                    'name': 'Protein Oatmeal',
+                    'ingredients': [
+                        {'name': 'oats', 'amount': 50, 'unit': 'g'},
+                        {'name': 'protein powder', 'amount': 30, 'unit': 'g'},
+                        {'name': 'berries', 'amount': 100, 'unit': 'g'},
+                        {'name': 'almonds', 'amount': 15, 'unit': 'g'},
+                        {'name': 'cinnamon', 'amount': 2, 'unit': 'g'}
+                    ],
+                    'instructions': [
+                        'Cook oats according to package instructions',
+                        'Stir in protein powder',
+                        'Top with berries and almonds',
+                        'Sprinkle with cinnamon'
+                    ]
+                },
+                {
+                    'name': 'Vegetable Omelette',
+                    'ingredients': [
+                        {'name': 'eggs', 'amount': 3, 'unit': 'large'},
+                        {'name': 'spinach', 'amount': 50, 'unit': 'g'},
+                        {'name': 'bell peppers', 'amount': 50, 'unit': 'g'},
+                        {'name': 'olive oil', 'amount': 5, 'unit': 'ml'},
+                        {'name': 'salt', 'amount': 1, 'unit': 'g'},
+                        {'name': 'pepper', 'amount': 1, 'unit': 'g'}
+                    ],
+                    'instructions': [
+                        'Sauté vegetables in olive oil',
+                        'Beat eggs with salt and pepper',
+                        'Pour eggs over vegetables',
+                        'Cook until set'
+                    ]
+                }
+            ],
+            'lunch': [
+                {
+                    'name': 'Grilled Chicken Salad',
+                    'ingredients': [
+                        {'name': 'chicken breast', 'amount': 150, 'unit': 'g'},
+                        {'name': 'mixed greens', 'amount': 100, 'unit': 'g'},
+                        {'name': 'cherry tomatoes', 'amount': 100, 'unit': 'g'},
+                        {'name': 'olive oil', 'amount': 15, 'unit': 'ml'},
+                        {'name': 'balsamic vinegar', 'amount': 10, 'unit': 'ml'},
+                        {'name': 'salt', 'amount': 1, 'unit': 'g'},
+                        {'name': 'pepper', 'amount': 1, 'unit': 'g'}
+                    ],
+                    'instructions': [
+                        'Season and grill chicken breast',
+                        'Toss greens and tomatoes with olive oil and vinegar',
+                        'Top with sliced chicken',
+                        'Season with salt and pepper'
+                    ]
+                }
+            ],
+            'dinner': [
+                {
+                    'name': 'Salmon with Quinoa',
+                    'ingredients': [
+                        {'name': 'salmon fillet', 'amount': 150, 'unit': 'g'},
+                        {'name': 'quinoa', 'amount': 100, 'unit': 'g'},
+                        {'name': 'broccoli', 'amount': 100, 'unit': 'g'},
+                        {'name': 'olive oil', 'amount': 10, 'unit': 'ml'},
+                        {'name': 'lemon', 'amount': 1, 'unit': 'whole'},
+                        {'name': 'garlic', 'amount': 2, 'unit': 'cloves'},
+                        {'name': 'salt', 'amount': 1, 'unit': 'g'},
+                        {'name': 'pepper', 'amount': 1, 'unit': 'g'}
+                    ],
+                    'instructions': [
+                        'Cook quinoa according to package instructions',
+                        'Season salmon with salt, pepper, and garlic',
+                        'Roast salmon and broccoli with olive oil',
+                        'Serve with lemon wedges'
+                    ]
+                }
+            ],
+            'snacks': [
+                {
+                    'name': 'Protein Smoothie',
+                    'ingredients': [
+                        {'name': 'protein powder', 'amount': 30, 'unit': 'g'},
+                        {'name': 'banana', 'amount': 1, 'unit': 'medium'},
+                        {'name': 'almond milk', 'amount': 250, 'unit': 'ml'},
+                        {'name': 'peanut butter', 'amount': 15, 'unit': 'g'},
+                        {'name': 'ice', 'amount': 100, 'unit': 'g'}
+                    ],
+                    'instructions': [
+                        'Add all ingredients to blender',
+                        'Blend until smooth',
+                        'Serve immediately'
+                    ]
+                }
+            ]
         }
     
     def generate_meal_plan(self, nutrition_needs, preferences):
         """Generate a weekly meal plan based on nutrition needs and preferences."""
-        daily_calories = nutrition_needs['target_calories']
-        macros = nutrition_needs['macros']
-        dietary_preferences = preferences.get('dietary_type', 'balanced')
-        excluded_foods = preferences.get('excluded_foods', [])
-        
-        # Generate meal distribution
-        meal_calories = self._distribute_calories(daily_calories, nutrition_needs['meal_timing']['meals_per_day'])
-        
-        # Generate weekly plan
-        weekly_plan = {}
-        grocery_list = {}
-        
-        for day in range(7):
-            daily_meals = {}
-            for meal, calories in meal_calories.items():
-                meal_macros = self._calculate_meal_macros(calories, macros)
-                meal_items = self._select_meal_items(
-                    meal_macros,
-                    dietary_preferences,
-                    excluded_foods,
-                    meal
-                )
-                daily_meals[meal] = meal_items
-                
-                # Add items to grocery list
-                for item in meal_items['ingredients']:
-                    category = self._get_food_category(item['name'])
-                    if category not in grocery_list:
-                        grocery_list[category] = {}
-                    if item['name'] not in grocery_list[category]:
-                        grocery_list[category][item['name']] = {
-                            'amount': 0,
-                            'unit': item['unit'],
-                            'recipes': []
-                        }
-                    grocery_list[category][item['name']]['amount'] += item['amount']
-                    if meal_items['name'] not in grocery_list[category][item['name']]['recipes']:
-                        grocery_list[category][item['name']]['recipes'].append(meal_items['name'])
+        try:
+            daily_calories = nutrition_needs['target_calories']
+            macros = nutrition_needs['macros']
+            dietary_preferences = preferences.get('dietary_type', 'balanced')
+            excluded_foods = preferences.get('excluded_foods', [])
+            servings = preferences.get('servings', 1)
             
-            weekly_plan[f'day_{day + 1}'] = daily_meals
+            # Generate meal distribution
+            meal_calories = self._distribute_calories(daily_calories, preferences.get('meal_count', 4))
+            
+            # Generate weekly plan
+            weekly_plan = {}
+            grocery_list = {}
+            
+            for day in range(7):
+                daily_meals = {}
+                for meal, calories in meal_calories.items():
+                    meal_macros = self._calculate_meal_macros(calories, macros)
+                    meal_items = self._select_meal_items(
+                        meal_macros,
+                        dietary_preferences,
+                        excluded_foods,
+                        meal,
+                        servings
+                    )
+                    if meal_items:
+                        daily_meals[meal] = meal_items
+                        
+                        # Add items to grocery list
+                        for item in meal_items['ingredients']:
+                            category = self._get_food_category(item['name'])
+                            if category not in grocery_list:
+                                grocery_list[category] = {}
+                            if item['name'] not in grocery_list[category]:
+                                grocery_list[category][item['name']] = {
+                                    'amount': 0,
+                                    'unit': item['unit'],
+                                    'recipes': []
+                                }
+                            grocery_list[category][item['name']]['amount'] += item['amount']
+                            if meal_items['name'] not in grocery_list[category][item['name']]['recipes']:
+                                grocery_list[category][item['name']]['recipes'].append(meal_items['name'])
+                
+                weekly_plan[f'day_{day + 1}'] = daily_meals
+            
+            # Generate prep schedule
+            prep_schedule = self._generate_prep_schedule(weekly_plan)
+            
+            return {
+                'weekly_plan': weekly_plan,
+                'grocery_list': self._optimize_grocery_list(grocery_list),
+                'prep_schedule': prep_schedule
+            }
+        except Exception as e:
+            current_app.logger.error(f"Error generating meal plan: {str(e)}")
+            return None
+    
+    def generate_shopping_links(self, grocery_list):
+        """Generate shopping cart links for various platforms."""
+        try:
+            # Format grocery list for URL parameters
+            formatted_items = []
+            for category, items in grocery_list.items():
+                for item in items:
+                    formatted_items.append(f"{item['quantity']} {item['item']}".strip())
+            
+            # Generate platform-specific links
+            shopping_links = {
+                'instacart': {
+                    'name': 'Instacart',
+                    'url': f"https://www.instacart.com/store/partner_recipe?" + 
+                          f"recipe_ingredients={','.join(formatted_items)}"
+                },
+                'amazon_fresh': {
+                    'name': 'Amazon Fresh',
+                    'url': f"https://www.amazon.com/alm/storefront?" + 
+                          f"almBrandId=QW1hem9uIEZyZXNo&" + 
+                          f"items={','.join(formatted_items)}"
+                }
+            }
+            
+            return shopping_links
+        except Exception as e:
+            current_app.logger.error(f"Error generating shopping links: {str(e)}")
+            return {}
+
+    def _optimize_grocery_list(self, grocery_list):
+        """Optimize the grocery list by combining similar items and adding categories."""
+        optimized_list = {}
+        for category, items in grocery_list.items():
+            optimized_list[category] = []
+            for item_name, details in items.items():
+                # Round up amounts to convenient shopping quantities
+                amount = details['amount']
+                if details['unit'] == 'g':
+                    amount = ceil(amount / 100) * 100  # Round to nearest 100g
+                elif details['unit'] == 'ml':
+                    amount = ceil(amount / 250) * 250  # Round to nearest 250ml
+                elif details['unit'] == 'whole':
+                    amount = ceil(amount)  # Round up whole items
+                
+                optimized_list[category].append({
+                    'item': item_name,
+                    'quantity': f"{amount}{details['unit']}",
+                    'recipes': details['recipes']
+                })
         
-        return {
-            'weekly_plan': weekly_plan,
-            'grocery_list': self._optimize_grocery_list(grocery_list)
+        # Sort categories in a logical shopping order
+        category_order = ['proteins', 'dairy', 'vegetables', 'fruits', 'carbs', 'healthy_fats', 'condiments']
+        sorted_list = {}
+        for category in category_order:
+            if category in optimized_list:
+                sorted_list[category] = optimized_list[category]
+        
+        # Add any remaining categories
+        for category, items in optimized_list.items():
+            if category not in sorted_list:
+                sorted_list[category] = items
+        
+        return sorted_list
+
+    def _generate_prep_schedule(self, weekly_plan):
+        """Generate a meal prep schedule based on the weekly plan."""
+        prep_schedule = {
+            'sunday': [],
+            'wednesday': []
         }
+        
+        # Group meals by type for batch cooking
+        meal_types = {}
+        for day, meals in weekly_plan.items():
+            for meal_type, meal in meals.items():
+                if meal_type not in meal_types:
+                    meal_types[meal_type] = []
+                meal_types[meal_type].append(meal)
+        
+        # Add batch cooking tasks to Sunday prep
+        for meal_type, meals in meal_types.items():
+            if meal_type in ['breakfast', 'lunch']:
+                prep_schedule['sunday'].append({
+                    'task': f'Prepare {meal_type} for the week',
+                    'meals': [meal['name'] for meal in meals],
+                    'estimated_time': '1-2 hours',
+                    'ingredients': self._get_prep_ingredients(meals)
+                })
+        
+        # Add Wednesday prep tasks
+        prep_schedule['wednesday'].append({
+            'task': 'Prepare fresh ingredients for remaining meals',
+            'estimated_time': '30 minutes',
+            'ingredients': self._get_fresh_ingredients(weekly_plan)
+        })
+        
+        return prep_schedule
+
+    def _get_prep_ingredients(self, meals):
+        """Get ingredients needed for meal prep."""
+        ingredients = {}
+        for meal in meals:
+            for ingredient in meal['ingredients']:
+                if ingredient['name'] not in ingredients:
+                    ingredients[ingredient['name']] = {
+                        'amount': 0,
+                        'unit': ingredient['unit']
+                    }
+                ingredients[ingredient['name']]['amount'] += ingredient['amount']
+        return ingredients
+
+    def _get_fresh_ingredients(self, weekly_plan):
+        """Get fresh ingredients needed for the week."""
+        fresh_ingredients = {}
+        for day, meals in weekly_plan.items():
+            for meal_type, meal in meals.items():
+                if meal_type in ['dinner', 'snacks']:
+                    for ingredient in meal['ingredients']:
+                        if ingredient['name'] not in fresh_ingredients:
+                            fresh_ingredients[ingredient['name']] = {
+                                'amount': 0,
+                                'unit': ingredient['unit']
+                            }
+                        fresh_ingredients[ingredient['name']]['amount'] += ingredient['amount']
+        return fresh_ingredients
     
     def _distribute_calories(self, total_calories, meals_per_day):
         """Distribute daily calories across meals."""
@@ -524,97 +766,67 @@ class MealPlanner:
             }
         }
     
-    def _select_meal_items(self, meal_macros, dietary_preferences, excluded_foods, meal_type):
+    def _select_meal_items(self, meal_macros, dietary_preferences, excluded_foods, meal_type, servings=1):
         """Select appropriate food items for a meal based on macros and preferences."""
-        # This would typically connect to a recipe database
-        # For now, return a placeholder meal
-        return {
-            'name': f'Balanced {meal_type.replace("_", " ").title()}',
-            'calories': sum([
-                meal_macros['protein']['grams'] * 4,
-                meal_macros['carbs']['grams'] * 4,
-                meal_macros['fat']['grams'] * 9
-            ]),
-            'macros': meal_macros,
-            'ingredients': [
-                {'name': 'chicken breast', 'amount': 150, 'unit': 'g'},
-                {'name': 'brown rice', 'amount': 100, 'unit': 'g'},
-                {'name': 'broccoli', 'amount': 100, 'unit': 'g'},
-                {'name': 'olive oil', 'amount': 15, 'unit': 'ml'}
-            ]
-        }
+        try:
+            # Filter recipes based on meal type and dietary preferences
+            available_recipes = self.recipes.get(meal_type, [])
+            
+            if not available_recipes:
+                # If no specific recipes, create a balanced meal
+                return {
+                    'name': f'Balanced {meal_type.replace("_", " ").title()}',
+                    'calories': sum([
+                        meal_macros['protein']['grams'] * 4,
+                        meal_macros['carbs']['grams'] * 4,
+                        meal_macros['fat']['grams'] * 9
+                    ]),
+                    'macros': meal_macros,
+                    'ingredients': [
+                        {'name': 'chicken breast', 'amount': 150 * servings, 'unit': 'g'},
+                        {'name': 'brown rice', 'amount': 100 * servings, 'unit': 'g'},
+                        {'name': 'broccoli', 'amount': 100 * servings, 'unit': 'g'},
+                        {'name': 'olive oil', 'amount': 15 * servings, 'unit': 'ml'}
+                    ],
+                    'instructions': [
+                        'Cook chicken breast',
+                        'Prepare brown rice',
+                        'Steam broccoli',
+                        'Combine and serve'
+                    ]
+                }
+            
+            # Select a random recipe (in a real app, this would be more sophisticated)
+            import random
+            recipe = random.choice(available_recipes)
+            
+            # Adjust ingredients for servings
+            adjusted_ingredients = []
+            for ingredient in recipe['ingredients']:
+                adjusted_ingredients.append({
+                    'name': ingredient['name'],
+                    'amount': ingredient['amount'] * servings,
+                    'unit': ingredient['unit']
+                })
+            
+            return {
+                'name': recipe['name'],
+                'calories': sum([
+                    meal_macros['protein']['grams'] * 4,
+                    meal_macros['carbs']['grams'] * 4,
+                    meal_macros['fat']['grams'] * 9
+                ]),
+                'macros': meal_macros,
+                'ingredients': adjusted_ingredients,
+                'instructions': recipe['instructions']
+            }
+        except Exception as e:
+            current_app.logger.error(f"Error selecting meal items: {str(e)}")
+            return None
     
     def _get_food_category(self, food_name):
         """Determine the category of a food item."""
         for category, foods in self.food_categories.items():
             if any(food in food_name.lower() for food in foods):
                 return category
-        return 'other'
-    
-    def _optimize_grocery_list(self, grocery_list):
-        """Optimize the grocery list for bulk shopping."""
-        optimized_list = {}
-        
-        for category, items in grocery_list.items():
-            optimized_list[category] = {}
-            for item_name, details in items.items():
-                # Round up amounts to convenient bulk quantities
-                amount = details['amount']
-                if details['unit'] == 'g':
-                    amount = ceil(amount / 100) * 100  # Round to nearest 100g
-                elif details['unit'] == 'ml':
-                    amount = ceil(amount / 250) * 250  # Round to nearest 250ml
-                
-                optimized_list[category][item_name] = {
-                    'amount': amount,
-                    'unit': details['unit'],
-                    'recipes': details['recipes'],
-                    'bulk_saving': self._calculate_bulk_saving(amount, details['unit'])
-                }
-        
-        return optimized_list
-    
-    def _calculate_bulk_saving(self, amount, unit):
-        """Calculate estimated savings from bulk purchase."""
-        # This would typically connect to a price database
-        # For now, return a placeholder percentage
-        if amount >= 1000 and unit == 'g':
-            return '15%'
-        elif amount >= 500 and unit == 'ml':
-            return '10%'
-        return '0%'
-
-    def generate_shopping_links(self, grocery_list):
-        """Generate shopping cart links for various platforms."""
-        
-        # Format grocery list for URL parameters
-        formatted_items = []
-        for category, items in grocery_list.items():
-            for item in items:
-                # Extract quantity and item name
-                if isinstance(item, dict):
-                    quantity = item.get('quantity', '')
-                    name = item.get('item', '')
-                else:
-                    quantity = ''
-                    name = item
-                
-                # Format item for URL
-                formatted_items.append(f"{quantity} {name}".strip())
-        
-        # Generate platform-specific links
-        shopping_links = {
-            'instacart': {
-                'name': 'Instacart',
-                'url': f"https://www.instacart.com/store/partner_recipe?" + 
-                      f"recipe_ingredients={','.join(formatted_items)}"
-            },
-            'amazon_fresh': {
-                'name': 'Amazon Fresh',
-                'url': f"https://www.amazon.com/alm/storefront?" + 
-                      f"almBrandId=QW1hem9uIEZyZXNo&" + 
-                      f"items={','.join(formatted_items)}"
-            }
-        }
-        
-        return shopping_links 
+        return 'other' 
