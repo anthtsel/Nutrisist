@@ -1,7 +1,9 @@
-# Environment variables
+# Environment files
 .env
-.env.*
-!.env.example
+.env.development
+.env.staging
+.env.production
+!.env.*.example
 
 # Python
 __pycache__/
@@ -9,6 +11,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -28,23 +31,39 @@ wheels/
 # Virtual Environment
 venv/
 ENV/
-env/
-.venv/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
+
+# Local development
+*.db
+*.sqlite3
+*.log
+tmp/
+temp/
+
+# ML models and data
+models/
+training_data/
+*.h5
+*.pkl
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Environment variables
+.env.*
+!.env.example
 
 # Database
-*.db
 *.sqlite
-*.sqlite3
 
 # Logs
-*.log
 logs/
 log/
 
@@ -53,14 +72,11 @@ uploads/
 media/
 
 # Coverage reports
-htmlcov/
-.coverage
 .coverage.*
 coverage.xml
 *.cover
 
 # Test cache
-.pytest_cache/
 .tox/
 .nox/
 
