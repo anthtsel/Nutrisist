@@ -18,7 +18,7 @@ def send_password_reset_email(user):
     token = user.get_reset_password_token()
     reset_url = url_for('auth.reset_password', token=token, _external=True)
     send_email(
-        '[Health & Diet Plan] Reset Your Password',
+        '[Nutrisist] Reset Your Password',
         sender=current_app.config['MAIL_USERNAME'],
         recipients=[user.email],
         text_body=render_template('auth/email/reset_password.txt',
