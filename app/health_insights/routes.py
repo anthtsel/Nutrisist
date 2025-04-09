@@ -1,4 +1,4 @@
-from flask import render_template, request, jsonify, current_app, redirect, url_for, flash
+from flask import render_template, request, jsonify, current_app, redirect, url_for, flash, session
 from flask_login import login_required, current_user
 from .. import db
 import os
@@ -7,9 +7,13 @@ from datetime import datetime, timedelta
 import logging
 from werkzeug.utils import secure_filename
 from .models import HealthInsightModel, DataType, UserProfile, RecoveryAssistant, NutritionAdvisor, MealPlanner
-from .data_processor import GarminDataProcessor
+from app.models import Device, DeviceConnection
 from .platforms.apple_health import AppleHealthPlatform
+from .platforms.fitbit import FitbitPlatform
+from .platforms.google_fit import GoogleFitPlatform
 from . import health_insights
+from app.health_insights.platforms.garmin import GarminPlatform
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -106,65 +110,92 @@ def connect():
     """Show platform connection options."""
     apple_platform = platforms.get(f'apple_{current_user.id}')
     garmin_platform = platforms.get(f'garmin_{current_user.id}')
+    fitbit_platform = platforms.get(f'fitbit_{current_user.id}')
+    google_fit_platform = platforms.get(f'google_fit_{current_user.id}')
     
     return render_template('health_insights/connect.html',
                          apple_connected=bool(apple_platform),
                          garmin_connected=bool(garmin_platform),
+                         fitbit_connected=bool(fitbit_platform),
+                         google_fit_connected=bool(google_fit_platform),
                          apple_last_sync=getattr(apple_platform, 'last_sync', None),
-                         garmin_last_sync=getattr(garmin_platform, 'last_sync', None))
+                         garmin_last_sync=getattr(garmin_platform, 'last_sync', None),
+                         fitbit_last_sync=getattr(fitbit_platform, 'last_sync', None),
+                         google_fit_last_sync=getattr(google_fit_platform, 'last_sync', None))
 
 @health_insights.route('/connect-apple')
 @login_required
 def connect_apple():
     """Connect to Apple Health."""
     try:
-        # For now, redirect to manual upload
-        return redirect(url_for('health_insights.upload'))
+        platform = AppleHealthPlatform(current_user.id)
+        if platform.connect():
+            platforms[f'apple_{current_user.id}'] = platform
+            return redirect(url_for('health_insights.connect'))
+        else:
+            flash('Failed to connect to Apple Health', 'danger')
+            return redirect(url_for('health_insights.connect'))
     except Exception as e:
         logger.error(f"Error connecting to Apple Health: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@health_insights.route('/upload-apple-data', methods=['POST'])
-@login_required
-def upload_apple_data():
-    """Handle Apple Health data file upload."""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
-            
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-            
-        if file:
-            filename = secure_filename(file.filename)
-            upload_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-            file.save(upload_path)
-            logger.info(f"Saved file: {upload_path}")
-            
-            # Initialize platform with the uploaded file
-            platform = AppleHealthPlatform(current_user.id, current_app.config['UPLOAD_FOLDER'])
-            if platform.connect(filename):
-                platforms[f'apple_{current_user.id}'] = platform
-                return jsonify({'success': True})
-            else:
-                return jsonify({'error': 'Failed to process Apple Health data'}), 400
-            
-    except Exception as e:
-        logger.error(f"Error processing Apple Health data: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        flash('Error connecting to Apple Health', 'danger')
+        return redirect(url_for('health_insights.connect'))
 
 @health_insights.route('/connect-garmin')
 @login_required
 def connect_garmin():
-    """Connect to Garmin Connect."""
+    """Connect to Garmin using OAuth."""
+    garmin = GarminPlatform(current_user.id)
+    
+    # Get request token
+    response = requests.post(
+        garmin.request_token_url,
+        auth=(current_app.config['GARMIN_CLIENT_ID'], current_app.config['GARMIN_CLIENT_SECRET'])
+    )
+    
+    if response.status_code == 200:
+        request_token = response.text.split('&')[0].split('=')[1]
+        session['garmin_request_token'] = request_token
+        
+        # Redirect to Garmin authorization page
+        auth_url = f"{garmin.authorize_url}?oauth_token={request_token}"
+        return redirect(auth_url)
+    
+    flash('Failed to connect to Garmin. Please try again.', 'error')
+    return redirect(url_for('health_insights.connect'))
+
+@health_insights.route('/connect-fitbit')
+@login_required
+def connect_fitbit():
+    """Connect to Fitbit."""
     try:
-        # For now, redirect to manual upload
-        return redirect(url_for('health_insights.upload'))
-            
+        platform = FitbitPlatform(current_user.id)
+        if platform.connect():
+            platforms[f'fitbit_{current_user.id}'] = platform
+            return redirect(url_for('health_insights.connect'))
+        else:
+            flash('Failed to connect to Fitbit', 'danger')
+            return redirect(url_for('health_insights.connect'))
     except Exception as e:
-        logger.error(f"Error connecting to Garmin Connect: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error connecting to Fitbit: {str(e)}")
+        flash('Error connecting to Fitbit', 'danger')
+        return redirect(url_for('health_insights.connect'))
+
+@health_insights.route('/connect-google-fit')
+@login_required
+def connect_google_fit():
+    """Connect to Google Fit."""
+    try:
+        platform = GoogleFitPlatform(current_user.id)
+        if platform.connect():
+            platforms[f'google_fit_{current_user.id}'] = platform
+            return redirect(url_for('health_insights.connect'))
+        else:
+            flash('Failed to connect to Google Fit', 'danger')
+            return redirect(url_for('health_insights.connect'))
+    except Exception as e:
+        logger.error(f"Error connecting to Google Fit: {str(e)}")
+        flash('Error connecting to Google Fit', 'danger')
+        return redirect(url_for('health_insights.connect'))
 
 @health_insights.route('/disconnect/<platform>', methods=['POST'])
 @login_required
@@ -198,9 +229,8 @@ def update_sync_settings():
             if platform_key.endswith(str(current_user.id)):
                 platform.sync_interval = interval
                 platform.auto_sync = auto_sync
-        
+                
         return jsonify({'success': True})
-            
     except Exception as e:
         logger.error(f"Error updating sync settings: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -208,44 +238,22 @@ def update_sync_settings():
 @health_insights.route('/sync-now', methods=['POST'])
 @login_required
 def sync_now():
-    """Manually trigger data sync for all connected platforms."""
+    """Trigger immediate sync for all connected platforms."""
     try:
-        results = {'apple': False, 'garmin': False}
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
-        
-        # Sync Apple Health data
-        apple_key = f'apple_{current_user.id}'
-        if apple_key in platforms:
-            apple_platform = platforms[apple_key]
-            heart_rate_data = apple_platform.fetch_data(DataType.HEART_RATE, start_date, end_date)
-            sleep_data = apple_platform.fetch_data(DataType.SLEEP, start_date, end_date)
-            
-            if heart_rate_data or sleep_data:
-                # Save normalized data
-                normalized_data = {
-                    'heart_rate': apple_platform.normalize_data(heart_rate_data, DataType.HEART_RATE).get('heart_rate', []),
-                    'sleep': apple_platform.normalize_data(sleep_data, DataType.SLEEP).get('sleep', [])
-                }
-                
-                save_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'apple_data.json')
-                with open(save_path, 'w') as f:
-                    json.dump(normalized_data, f)
+        success = True
+        for platform_key, platform in platforms.items():
+            if platform_key.endswith(str(current_user.id)):
+                if not platform.sync():
+                    success = False
+                    logger.error(f"Failed to sync platform: {platform_key}")
                     
-                results['apple'] = True
-        
-        # Sync Garmin data (manual upload only for now)
-        garmin_key = f'garmin_{current_user.id}'
-        if garmin_key in platforms:
-            results['garmin'] = True
-        
-        return jsonify({
-            'success': any(results.values()),
-            'results': results
-        })
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Some platforms failed to sync'}), 500
             
     except Exception as e:
-        logger.error(f"Error syncing data: {str(e)}")
+        logger.error(f"Error during sync: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @health_insights.route('/upload')
@@ -254,39 +262,61 @@ def upload():
     """Show manual data upload form."""
     return render_template('health_insights/upload.html')
 
-@health_insights.route('/upload-garmin-data', methods=['POST'])
+@health_insights.route('/garmin/callback')
 @login_required
-def upload_garmin_data():
-    """Handle Garmin data file upload."""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
-            
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-            
-        if file:
-            filename = secure_filename(file.filename)
-            upload_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-            file.save(upload_path)
-            logger.info(f"Saved file: {upload_path}")
-            
-            # Process uploaded file
-            processor = GarminDataProcessor(current_app.config['UPLOAD_FOLDER'])
-            processor.process_directory()
-            
-            # Save processed data
-            save_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'garmin_data.json')
-            with open(save_path, 'w') as f:
-                json.dump(processor.processed_data, f)
-                
-            logger.info(f"Processed data saved to {save_path}")
-            return jsonify({'success': True})
-            
-    except Exception as e:
-        logger.error(f"Error processing files: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+def garmin_callback():
+    """Handle Garmin OAuth callback."""
+    oauth_token = request.args.get('oauth_token')
+    oauth_verifier = request.args.get('oauth_verifier')
+    
+    if not oauth_token or not oauth_verifier:
+        flash('Invalid Garmin callback parameters.', 'error')
+        return redirect(url_for('health_insights.connect'))
+    
+    garmin = GarminPlatform(current_user.id)
+    
+    # Exchange request token for access token
+    data = {
+        'oauth_token': oauth_token,
+        'oauth_verifier': oauth_verifier
+    }
+    
+    response = requests.post(
+        garmin.token_url,
+        auth=(current_app.config['GARMIN_CLIENT_ID'], current_app.config['GARMIN_CLIENT_SECRET']),
+        data=data
+    )
+    
+    if response.status_code == 200:
+        token_data = response.json()
+        
+        # Update user with Garmin tokens
+        current_user.garmin_access_token = token_data['access_token']
+        current_user.garmin_refresh_token = token_data['refresh_token']
+        current_user.garmin_token_expires_at = datetime.utcnow() + timedelta(seconds=token_data['expires_in'])
+        current_user.garmin_connected = True
+        
+        # Create or update device entry
+        device = Device.query.filter_by(
+            user_id=current_user.id,
+            platform='garmin'
+        ).first()
+        
+        if not device:
+            device = Device(
+                user_id=current_user.id,
+                platform='garmin',
+                device_name='Garmin Connect',
+                last_sync=datetime.utcnow()
+            )
+            db.session.add(device)
+        
+        db.session.commit()
+        flash('Successfully connected to Garmin!', 'success')
+    else:
+        flash('Failed to connect to Garmin. Please try again.', 'error')
+    
+    return redirect(url_for('health_insights.connect'))
 
 @health_insights.route('/dashboard')
 @login_required

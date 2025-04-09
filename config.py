@@ -90,7 +90,7 @@ class Config:
     # API Keys
     GARMIN_CLIENT_ID = os.environ.get('GARMIN_CLIENT_ID')
     GARMIN_CLIENT_SECRET = os.environ.get('GARMIN_CLIENT_SECRET')
-    GARMIN_REDIRECT_URI = os.environ.get('GARMIN_REDIRECT_URI', 'http://localhost:5001/garmin/callback')
+    GARMIN_REDIRECT_URI = os.environ.get('GARMIN_REDIRECT_URI', 'http://localhost:5000/garmin/callback')
 
 class DevelopmentConfig(Config):
     DEBUG = True

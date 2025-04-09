@@ -10,7 +10,7 @@
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">
-                        <i class="fas fa-heartbeat text-danger"></i> Apple Health
+                        <i class="bi bi-heart-pulse-fill text-danger"></i> Apple Health
                     </h5>
                     <p class="card-text">
                         Connect your Apple Health data to get insights about your:
@@ -23,7 +23,7 @@
                     </p>
                     {% if apple_connected %}
                     <div class="alert alert-success">
-                        <i class="fas fa-check-circle"></i> Connected
+                        <i class="bi bi-check-circle-fill"></i> Connected
                         <small class="d-block">Last sync: {{ apple_last_sync }}</small>
                     </div>
                     <button class="btn btn-outline-danger" onclick="disconnectPlatform('apple')">
@@ -46,7 +46,7 @@
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">
-                        <i class="fas fa-running text-primary"></i> Garmin Connect
+                        <i class="bi bi-activity text-primary"></i> Garmin Connect
                     </h5>
                     <p class="card-text">
                         Connect your Garmin device data to get insights about your:
@@ -59,31 +59,89 @@
                     </p>
                     {% if garmin_connected %}
                     <div class="alert alert-success">
-                        <i class="fas fa-check-circle"></i> Connected
+                        <i class="bi bi-check-circle-fill"></i> Connected
                         <small class="d-block">Last sync: {{ garmin_last_sync }}</small>
                     </div>
                     <button class="btn btn-outline-danger" onclick="disconnectPlatform('garmin')">
                         Disconnect
                     </button>
                     {% else %}
-                    <p class="text-muted small">
-                        You can also manually upload Garmin data files
+                    <button class="btn btn-primary" onclick="connectGarmin()">
+                        Connect Garmin
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Fitbit Card -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-watch text-info"></i> Fitbit
+                    </h5>
+                    <p class="card-text">
+                        Connect your Fitbit device data to get insights about your:
+                        <ul>
+                            <li>Daily Activity</li>
+                            <li>Sleep Stages</li>
+                            <li>Heart Rate</li>
+                            <li>Workout Intensity</li>
+                        </ul>
                     </p>
-                    <div class="btn-group">
-                        <button class="btn btn-primary" onclick="connectGarmin()">
-                            Connect Garmin
-                        </button>
-                        <a href="{{ url_for('health_insights.upload') }}" class="btn btn-outline-primary">
-                            Manual Upload
-                        </a>
+                    {% if fitbit_connected %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill"></i> Connected
+                        <small class="d-block">Last sync: {{ fitbit_last_sync }}</small>
                     </div>
+                    <button class="btn btn-outline-danger" onclick="disconnectPlatform('fitbit')">
+                        Disconnect
+                    </button>
+                    {% else %}
+                    <button class="btn btn-primary" onclick="connectFitbit()">
+                        Connect Fitbit
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Google Fit Card -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-google text-success"></i> Google Fit
+                    </h5>
+                    <p class="card-text">
+                        Connect your Google Fit data to get insights about your:
+                        <ul>
+                            <li>Activity Minutes</li>
+                            <li>Heart Points</li>
+                            <li>Sleep Analysis</li>
+                            <li>Workout History</li>
+                        </ul>
+                    </p>
+                    {% if google_fit_connected %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill"></i> Connected
+                        <small class="d-block">Last sync: {{ google_fit_last_sync }}</small>
+                    </div>
+                    <button class="btn btn-outline-danger" onclick="disconnectPlatform('google_fit')">
+                        Disconnect
+                    </button>
+                    {% else %}
+                    <button class="btn btn-primary" onclick="connectGoogleFit()">
+                        Connect Google Fit
+                    </button>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
 
-    {% if apple_connected or garmin_connected %}
+    {% if apple_connected or garmin_connected or fitbit_connected or google_fit_connected %}
     <div class="mt-4">
         <h4>Data Sync Settings</h4>
         <div class="card">
@@ -103,24 +161,31 @@
                     <label class="form-check-label" for="autoSync">Enable automatic sync</label>
                 </div>
                 <button class="btn btn-outline-primary mt-3" onclick="syncNow()">
-                    Sync Now
+                    <i class="bi bi-arrow-repeat"></i> Sync Now
                 </button>
             </div>
         </div>
     </div>
     {% endif %}
 </div>
+{% endblock %}
 
-<!-- JavaScript for platform connections -->
+{% block scripts %}
 <script>
 function connectAppleHealth() {
-    // Open Apple Health authorization flow
     window.location.href = "{{ url_for('health_insights.connect_apple') }}";
 }
 
 function connectGarmin() {
-    // Open Garmin Connect authorization flow
     window.location.href = "{{ url_for('health_insights.connect_garmin') }}";
+}
+
+function connectFitbit() {
+    window.location.href = "{{ url_for('health_insights.connect_fitbit') }}";
+}
+
+function connectGoogleFit() {
+    window.location.href = "{{ url_for('health_insights.connect_google_fit') }}";
 }
 
 function disconnectPlatform(platform) {
@@ -167,7 +232,7 @@ function updateSyncSettings() {
 function syncNow() {
     const button = event.target;
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-sync fa-spin"></i> Syncing...';
+    button.innerHTML = '<i class="bi bi-arrow-repeat"></i> Syncing...';
     
     fetch("{{ url_for('health_insights.sync_now') }}", {
         method: 'POST',
@@ -182,7 +247,7 @@ function syncNow() {
         } else {
             alert('Error syncing data');
             button.disabled = false;
-            button.innerHTML = 'Sync Now';
+            button.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync Now';
         }
     });
 }

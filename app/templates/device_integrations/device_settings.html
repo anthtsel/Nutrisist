@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Device Settings{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0">Device Settings</h2>
+                    <a href="{{ url_for('device_integrations.devices') }}" class="btn btn-sm btn-outline-secondary">
+                        Back to Devices
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('device_integrations.update_device_settings', device_id=device.id) }}">
+                        <div class="mb-3">
+                            <label for="device_name" class="form-label">Device Name</label>
+                            <input type="text" class="form-control" id="device_name" name="device_name" 
+                                   value="{{ device.name }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="sync_frequency" class="form-label">Sync Frequency</label>
+                            <select class="form-select" id="sync_frequency" name="sync_frequency">
+                                <option value="hourly" {% if device.sync_frequency == 'hourly' %}selected{% endif %}>Hourly</option>
+                                <option value="daily" {% if device.sync_frequency == 'daily' %}selected{% endif %}>Daily</option>
+                                <option value="weekly" {% if device.sync_frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+                                <option value="manual" {% if device.sync_frequency == 'manual' %}selected{% endif %}>Manual Only</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="auto_sync" name="auto_sync"
+                                       {% if device.auto_sync %}checked{% endif %}>
+                                <label class="form-check-label" for="auto_sync">
+                                    Enable Automatic Syncing
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Data Types to Sync</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="sync_steps" name="sync_steps"
+                                       {% if 'steps' in device.sync_types %}checked{% endif %}>
+                                <label class="form-check-label" for="sync_steps">Steps</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="sync_heart_rate" name="sync_heart_rate"
+                                       {% if 'heart_rate' in device.sync_types %}checked{% endif %}>
+                                <label class="form-check-label" for="sync_heart_rate">Heart Rate</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="sync_sleep" name="sync_sleep"
+                                       {% if 'sleep' in device.sync_types %}checked{% endif %}>
+                                <label class="form-check-label" for="sync_sleep">Sleep Data</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="sync_workouts" name="sync_workouts"
+                                       {% if 'workouts' in device.sync_types %}checked{% endif %}>
+                                <label class="form-check-label" for="sync_workouts">Workouts</label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button type="submit" class="btn btn-primary">Save Settings</button>
+                            <a href="{{ url_for('device_integrations.disconnect_device', device_id=device.id) }}" 
+                               class="btn btn-danger" onclick="return confirm('Are you sure you want to disconnect this device?')">
+                                Disconnect Device
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="h6 mb-0">Device Information</h3>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Platform</dt>
+                        <dd class="col-sm-8">{{ device.platform|title }}</dd>
+
+                        <dt class="col-sm-4">Last Sync</dt>
+                        <dd class="col-sm-8">
+                            {% if device.last_sync %}
+                                {{ device.last_sync.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </dd>
+
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge {% if device.is_active %}bg-success{% else %}bg-warning{% endif %}">
+                                {{ 'Active' if device.is_active else 'Inactive' }}
+                            </span>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -34,6 +34,12 @@ class User(UserMixin, db.Model):
     activity_level = db.Column(db.String(20))
     health_goals = db.Column(db.String(200))
     
+    # Garmin OAuth fields
+    garmin_access_token = db.Column(db.String(256))
+    garmin_refresh_token = db.Column(db.String(256))
+    garmin_token_expires_at = db.Column(db.DateTime)
+    garmin_connected = db.Column(db.Boolean, default=False)
+    
     # Relationships
     health_metrics = db.relationship('HealthMetric', backref='user', lazy=True)
     profile = db.relationship('UserProfile', backref='user', uselist=False, lazy=True)
@@ -116,4 +122,46 @@ class HealthMetric(db.Model):
     notes = db.Column(db.Text)
     
     def __repr__(self):
-        return f'<HealthMetric {self.date}>' 
+        return f'<HealthMetric {self.date}>'
+
+class DeviceConnection(db.Model):
+    """Model for storing device platform connections and OAuth tokens."""
+    __tablename__ = 'device_connections'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    platform = db.Column(db.String(50), nullable=False)
+    access_token = db.Column(db.String(500), nullable=False)
+    refresh_token = db.Column(db.String(500))
+    token_expires_at = db.Column(db.DateTime, nullable=False)
+    last_synced_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Add unique constraint for user_id and platform combination
+    __table_args__ = (db.UniqueConstraint('user_id', 'platform', name='_user_platform_uc'),)
+
+    def __repr__(self):
+        return f'<DeviceConnection {self.platform} for User {self.user_id}>'
+
+class Device(db.Model):
+    """Model for storing connected health devices."""
+    __tablename__ = 'devices'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    platform = db.Column(db.String(50), nullable=False)  # e.g., 'garmin', 'fitbit', 'apple_health', 'google_fit'
+    device_name = db.Column(db.String(100))
+    device_id = db.Column(db.String(100))
+    last_sync = db.Column(db.DateTime)
+    sync_frequency = db.Column(db.Integer, default=6)  # hours between syncs
+    auto_sync = db.Column(db.Boolean, default=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Add unique constraint for user_id and platform combination
+    __table_args__ = (db.UniqueConstraint('user_id', 'platform', name='_user_platform_uc'),)
+
+    def __repr__(self):
+        return f'<Device {self.device_name} ({self.platform})>' 
