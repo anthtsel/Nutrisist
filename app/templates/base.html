@@ -58,15 +58,17 @@
                 </ul>
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('health_insights.profile') }}">
-                            <i class="bi bi-person-circle"></i> Profile
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle"></i> Account
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
-                            <i class="bi bi-box-arrow-right"></i> Logout
-                        </a>
+                        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            <a class="dropdown-item" href="{{ url_for('health_insights.profile') }}">Profile</a>
+                            <a class="dropdown-item" href="{{ url_for('main.about') }}">About</a>
+                            <a class="dropdown-item" href="{{ url_for('main.support') }}">Support</a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a>
+                        </div>
                     </li>
                     {% else %}
                     <li class="nav-item">
