@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Profile Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('profile.update') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" value="{{ current_user.username }}" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="height" class="form-label">Height (cm)</label>
+                        <input type="number" class="form-control" id="height" name="height" value="{{ profile.height|default('') }}" step="0.1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="weight" class="form-label">Weight (kg)</label>
+                        <input type="number" class="form-control" id="weight" name="weight" value="{{ profile.weight|default('') }}" step="0.1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="activity_level" class="form-label">Activity Level</label>
+                        <select class="form-select" id="activity_level" name="activity_level">
+                            <option value="sedentary" {% if profile.activity_level == 'sedentary' %}selected{% endif %}>Sedentary</option>
+                            <option value="light" {% if profile.activity_level == 'light' %}selected{% endif %}>Light</option>
+                            <option value="moderate" {% if profile.activity_level == 'moderate' %}selected{% endif %}>Moderate</option>
+                            <option value="active" {% if profile.activity_level == 'active' %}selected{% endif %}>Active</option>
+                            <option value="very_active" {% if profile.activity_level == 'very_active' %}selected{% endif %}>Very Active</option>
+                        </select>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Update Profile</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Activity Goals</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('profile.update_goals') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="daily_steps" class="form-label">Daily Steps Goal</label>
+                            <input type="number" class="form-control" id="daily_steps" name="daily_steps" value="{{ profile.daily_steps_goal|default(10000) }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="daily_calories" class="form-label">Daily Calories Goal</label>
+                            <input type="number" class="form-control" id="daily_calories" name="daily_calories" value="{{ profile.daily_calories_goal|default(2000) }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="weekly_workouts" class="form-label">Weekly Workouts Goal</label>
+                            <input type="number" class="form-control" id="weekly_workouts" name="weekly_workouts" value="{{ profile.weekly_workouts_goal|default(3) }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="weight_goal" class="form-label">Weight Goal (kg)</label>
+                            <input type="number" class="form-control" id="weight_goal" name="weight_goal" value="{{ profile.weight_goal|default('') }}" step="0.1">
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Update Goals</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
