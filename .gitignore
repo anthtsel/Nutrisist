@@ -1,16 +1,10 @@
-# Environment files
-.env
-.env.development
-.env.staging
-.env.production
-!.env.*.example
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -29,9 +23,10 @@ wheels/
 
 # Virtual Environment
 venv/
-.env/
-.venv/
 ENV/
+
+# Environment Variables
+.env
 
 # IDE
 .idea/
@@ -39,95 +34,9 @@ ENV/
 *.swp
 *.swo
 
-# Local development
-*.db
-*.sqlite3
-*.log
-tmp/
-temp/
-
-# ML models and data
-models/
-training_data/
-*.h5
-*.pkl
-
-# Test coverage
-.coverage
-htmlcov/
-.pytest_cache/
-
-# Environment variables
-.env.*
-!.env.example
-
 # Database
+*.sqlite
 *.db
-*.sqlite3
 
 # Logs
-*.log
-logs/
-
-# Uploads
-uploads/
-media/
-
-# Coverage reports
-.coverage.*
-coverage.xml
-*.cover
-
-# Test cache
-.tox/
-.nox/
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# System Files
-.DS_Store
-Thumbs.db
-
-# Flask
-instance/
-.webassets-cache
-flask_session/ 
+*.log 

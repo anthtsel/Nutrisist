@@ -1,21 +1,43 @@
-# Health Diet API
+# Nutrisist
 
-A RESTful API for managing health and diet information.
+A comprehensive nutrition and health monitoring system that integrates wearable data with personalized meal planning.
 
-## Description
+## Setup
 
-This API will provide endpoints for:
-- User management
-- Diet tracking
-- Nutritional information
-- Health metrics
-- Meal planning
-- Exercise tracking
+1. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-## Getting Started
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Instructions for setting up and running the project will be added as development progresses.
+3. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Update the variables in `.env` with your configuration
 
-## License
+4. Initialize the database:
+   ```bash
+   flask db init
+   flask db migrate
+   flask db upgrade
+   ```
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+5. Run the application:
+   ```bash
+   python run.py
+   ```
+
+## Project Structure
+
+The project follows a modular structure:
+- `backend/`: Main application code
+  - `app/`: Application package
+    - `models/`: Database models
+    - `routes/`: API routes and views
+    - `services/`: Business logic
+    - `templates/`: HTML templates
+    - `static/`: Static files (CSS, JS) 
