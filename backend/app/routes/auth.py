@@ -1,76 +1,61 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, session, g
-from werkzeug.security import generate_password_hash, check_password_hash
-from app.models import User
-from app import db
+from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask_login import login_user, logout_user, login_required, current_user
+from werkzeug.urls import url_parse
+from ..models.user import User
+from .. import db
 
-bp = Blueprint('auth', __name__, url_prefix='/auth')
+auth_bp = Blueprint('auth', __name__)
 
-@bp.route('/login', methods=['GET', 'POST'])
+@auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        error = None
-        user = User.query.filter_by(username=username).first()
-        
-        if user is None:
-            error = 'Invalid username.'
-        elif not check_password_hash(user.password_hash, password):
-            error = 'Invalid password.'
-            
-        if error is None:
-            session.clear()
-            session['user_id'] = user.id
-            return redirect(url_for('dashboard.index'))
-            
-        flash(error, 'error')
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
     
-    return render_template('login.html')
-
-@bp.route('/register', methods=['GET', 'POST'])
-def register():
     if request.method == 'POST':
-        username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
         
-        error = None
+        if user is None or not user.check_password(password):
+            flash('Invalid email or password')
+            return redirect(url_for('auth.login'))
         
-        if not username:
-            error = 'Username is required.'
-        elif not email:
-            error = 'Email is required.'
-        elif not password:
-            error = 'Password is required.'
-        
-        if error is None:
-            try:
-                user = User(
-                    username=username,
-                    email=email,
-                    password_hash=generate_password_hash(password)
-                )
-                db.session.add(user)
-                db.session.commit()
-                return redirect(url_for('auth.login'))
-            except:
-                error = 'User already exists.'
-        
-        flash(error, 'error')
+        login_user(user)
+        next_page = request.args.get('next')
+        if not next_page or url_parse(next_page).netloc != '':
+            next_page = url_for('dashboard.index')
+        return redirect(next_page)
     
-    return render_template('register.html')
+    return render_template('auth/login.html')
 
-@bp.route('/logout')
+@auth_bp.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        
+        user = User.query.filter_by(email=email).first()
+        if user:
+            flash('Email already registered')
+            return redirect(url_for('auth.register'))
+        
+        user = User(email=email, first_name=first_name, last_name=last_name)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        
+        flash('Registration successful! Please login.')
+        return redirect(url_for('auth.login'))
+    
+    return render_template('auth/register.html')
+
+@auth_bp.route('/logout')
+@login_required
 def logout():
-    session.clear()
-    return redirect(url_for('auth.login'))
-
-@bp.before_app_request
-def load_logged_in_user():
-    user_id = session.get('user_id')
-    
-    if user_id is None:
-        g.user = None
-    else:
-        g.user = User.query.get(user_id) 
+    logout_user()
+    return redirect(url_for('auth.login')) 

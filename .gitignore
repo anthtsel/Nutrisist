@@ -16,7 +16,6 @@ lib64/
 parts/
 sdist/
 var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -25,18 +24,25 @@ wheels/
 venv/
 ENV/
 
-# Environment Variables
-.env
-
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Database
-*.sqlite
-*.db
+# Environment variables
+.env
 
 # Logs
-*.log 
+*.log
+
+# Database
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/ 
