@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Connect Wearable Device - Nutrisist{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Connect Wearable Device</h1>
+        <p class="lead">Choose your device to connect</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Fitbit</h5>
+                <p class="card-text">Connect your Fitbit device to track activity and sleep data.</p>
+                <form action="{{ url_for('wearable.connect_wearable') }}" method="POST">
+                    <input type="hidden" name="device_type" value="fitbit">
+                    <button type="submit" class="btn btn-primary">Connect Fitbit</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Apple Health</h5>
+                <p class="card-text">Connect your Apple Health data to track activity and health metrics.</p>
+                <form action="{{ url_for('wearable.connect_wearable') }}" method="POST">
+                    <input type="hidden" name="device_type" value="apple_health">
+                    <button type="submit" class="btn btn-primary">Connect Apple Health</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

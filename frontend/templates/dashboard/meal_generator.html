@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Meal Plan - Nutrisist{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Generate Meal Plan</h1>
+        <p class="lead">Create a personalized meal plan based on your activity data</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-body">
+                <form action="{{ url_for('meal_plan.generate_meal_plan') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="calorie_goal" class="form-label">Daily Calorie Goal</label>
+                        <input type="number" class="form-control" id="calorie_goal" name="calorie_goal" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="meal_frequency" class="form-label">Meals per Day</label>
+                        <select class="form-select" id="meal_frequency" name="meal_frequency">
+                            <option value="3">3 meals</option>
+                            <option value="4">4 meals</option>
+                            <option value="5">5 meals</option>
+                            <option value="6">6 meals</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Dietary Restrictions</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="dietary_restrictions" value="vegetarian" id="vegetarian">
+                            <label class="form-check-label" for="vegetarian">Vegetarian</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="dietary_restrictions" value="vegan" id="vegan">
+                            <label class="form-check-label" for="vegan">Vegan</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="dietary_restrictions" value="gluten_free" id="gluten_free">
+                            <label class="form-check-label" for="gluten_free">Gluten Free</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="dietary_restrictions" value="dairy_free" id="dairy_free">
+                            <label class="form-check-label" for="dairy_free">Dairy Free</label>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Generate Meal Plan</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

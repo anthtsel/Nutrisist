@@ -11,4 +11,14 @@ def index():
 @dashboard_bp.route('/profile')
 @login_required
 def profile():
-    return render_template('dashboard/profile.html', user=current_user) 
+    return render_template('dashboard/profile.html', user=current_user)
+
+@dashboard_bp.route('/wearable/connect')
+@login_required
+def wearable_connect():
+    return render_template('dashboard/wearable_connect.html', user=current_user)
+
+@dashboard_bp.route('/meal/generator')
+@login_required
+def meal_generator():
+    return render_template('dashboard/meal_generator.html', user=current_user) 

@@ -14,29 +14,135 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Daily Nutrition</h5>
-                <p class="card-text">Track your daily nutrition intake and goals.</p>
-                <a href="#" class="btn btn-primary">View Details</a>
+                <h5 class="card-title">Wearable Connection</h5>
+                <p class="card-text">Connect your wearable device to track activity and generate personalized meal plans.</p>
+                {% if not user.wearable_connected %}
+                <a href="{{ url_for('dashboard.wearable_connect') }}" class="btn btn-primary">Connect Device</a>
+                {% else %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> Device Connected
+                </div>
+                <a href="{{ url_for('dashboard.wearable_connect') }}" class="btn btn-outline-primary">Manage Connection</a>
+                {% endif %}
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Meal Planning</h5>
-                <p class="card-text">Plan your meals and get personalized recommendations.</p>
-                <a href="#" class="btn btn-primary">View Details</a>
+                <h5 class="card-title">Meal Plan Generator</h5>
+                <p class="card-text">Generate personalized meal plans based on your activity data.</p>
+                {% if user.wearable_connected %}
+                <a href="{{ url_for('dashboard.meal_generator') }}" class="btn btn-primary">Generate Plan</a>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-circle"></i> Connect a wearable device to generate meal plans
+                </div>
+                <a href="{{ url_for('dashboard.wearable_connect') }}" class="btn btn-outline-primary">Connect Device</a>
+                {% endif %}
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Activity Tracking</h5>
-                <p class="card-text">Monitor your physical activity and progress.</p>
-                <a href="#" class="btn btn-primary">View Details</a>
+                <h5 class="card-title">Activity Summary</h5>
+                {% if user.wearable_connected %}
+                <div class="activity-summary">
+                    <p><strong>Today's Steps:</strong> <span id="today-steps">Loading...</span></p>
+                    <p><strong>Calories Burned:</strong> <span id="today-calories">Loading...</span></p>
+                    <p><strong>Sleep Duration:</strong> <span id="today-sleep">Loading...</span></p>
+                </div>
+                <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline-primary">View Details</a>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Connect a wearable device to view activity data
+                </div>
+                <a href="{{ url_for('dashboard.wearable_connect') }}" class="btn btn-outline-primary">Connect Device</a>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+{% if user.wearable_connected %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="activity-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% block scripts %}
+{% if user.wearable_connected %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load today's activity data
+    async function loadTodayActivity() {
+        try {
+            const response = await fetch('/api/wearables/activity/today');
+            const data = await response.json();
+            
+            if (response.ok) {
+                document.getElementById('today-steps').textContent = data.steps.toLocaleString();
+                document.getElementById('today-calories').textContent = data.calories.toLocaleString();
+                document.getElementById('today-sleep').textContent = `${Math.floor(data.sleep_minutes / 60)}h ${data.sleep_minutes % 60}m`;
+            }
+        } catch (error) {
+            console.error('Error loading activity data:', error);
+        }
+    }
+
+    // Load and render activity chart
+    async function loadActivityChart() {
+        try {
+            const response = await fetch('/api/wearables/activity/weekly');
+            const data = await response.json();
+            
+            const ctx = document.getElementById('activity-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'Steps',
+                        data: data.steps,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }, {
+                        label: 'Calories',
+                        data: data.calories,
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error loading chart data:', error);
+        }
+    }
+
+    // Initial load
+    loadTodayActivity();
+    loadActivityChart();
+});
+</script>
+{% endif %}
+{% endblock %}
 {% endblock %} 
